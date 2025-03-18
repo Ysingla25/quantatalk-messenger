@@ -23,7 +23,7 @@ const Index = () => {
   }
 
   return (
-    <Layout className="flex flex-col items-center justify-center p-4 md:p-8">
+    <Layout className="flex flex-col items-center justify-center p-4 md:p-8 pt-8">
       <div className="w-full max-w-5xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="order-2 lg:order-1 animate-fade-in">

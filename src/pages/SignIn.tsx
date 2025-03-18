@@ -12,7 +12,7 @@ const SignIn = () => {
   };
 
   return (
-    <Layout className="flex items-center justify-center p-4 md:p-8">
+    <Layout className="flex items-center justify-center p-4 md:p-8 pt-8">
       <div className="w-full max-w-lg mx-auto">
         <LoginForm onSuccess={handleLoginSuccess} />
       </div>

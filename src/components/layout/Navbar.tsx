@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Users, Lock, User, Settings } from 'lucide-react';
+import { MessageSquare, Users, Lock, User, Settings, Info, Zap, LogIn, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocation } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const isLoggedIn = localStorage.getItem('quantatalk-user') !== null;
 
   return (
     <nav className="glass-effect py-4 px-4 md:px-6 fixed top-0 left-0 right-0 z-50">
@@ -39,23 +40,59 @@ const Navbar: React.FC = () => {
 
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center space-x-1">
-          <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-1" />} label="Messages" active={location.pathname.includes('/chat')} />
-          <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-1" />} label="Groups" active={location.pathname === '/groups'} />
-          <NavItem to="/security" icon={<Lock className="h-4 w-4 mr-1" />} label="Security" active={location.pathname === '/security'} />
-          <Button variant="ghost" size="sm" className="ml-4 !border border-border">
-            <User className="h-4 w-4 mr-1" />
-            <span>Profile</span>
-          </Button>
+          <NavItem to="/about" icon={<Info className="h-4 w-4 mr-1" />} label="About" active={location.pathname === '/about'} />
+          <NavItem to="/features" icon={<Zap className="h-4 w-4 mr-1" />} label="Features" active={location.pathname === '/features'} />
+          
+          {isLoggedIn ? (
+            <>
+              <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-1" />} label="Messages" active={location.pathname.includes('/chat')} />
+              <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-1" />} label="Groups" active={location.pathname === '/groups'} />
+              <NavItem to="/security" icon={<Lock className="h-4 w-4 mr-1" />} label="Security" active={location.pathname === '/security'} />
+              <Button variant="ghost" size="sm" className="ml-4 !border border-border" asChild>
+                <Link to="/profile">
+                  <User className="h-4 w-4 mr-1" />
+                  <span>Profile</span>
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" className="ml-4" asChild>
+                <Link to="/sign-in">
+                  <LogIn className="h-4 w-4 mr-1" />
+                  <span>Sign In</span>
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" className="ml-2 !border border-border" asChild>
+                <Link to="/sign-up">
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  <span>Sign Up</span>
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile navigation */}
         {isOpen && (
           <div className="absolute top-full left-0 right-0 p-4 mt-1 glass-effect flex flex-col space-y-2 md:hidden animate-scale-in">
-            <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-2" />} label="Messages" active={location.pathname.includes('/chat')} />
-            <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-2" />} label="Groups" active={location.pathname === '/groups'} />
-            <NavItem to="/security" icon={<Lock className="h-4 w-4 mr-2" />} label="Security" active={location.pathname === '/security'} />
-            <NavItem to="/profile" icon={<User className="h-4 w-4 mr-2" />} label="Profile" active={location.pathname === '/profile'} />
-            <NavItem to="/settings" icon={<Settings className="h-4 w-4 mr-2" />} label="Settings" active={location.pathname === '/settings'} />
+            <NavItem to="/about" icon={<Info className="h-4 w-4 mr-2" />} label="About" active={location.pathname === '/about'} />
+            <NavItem to="/features" icon={<Zap className="h-4 w-4 mr-2" />} label="Features" active={location.pathname === '/features'} />
+            
+            {isLoggedIn ? (
+              <>
+                <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-2" />} label="Messages" active={location.pathname.includes('/chat')} />
+                <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-2" />} label="Groups" active={location.pathname === '/groups'} />
+                <NavItem to="/security" icon={<Lock className="h-4 w-4 mr-2" />} label="Security" active={location.pathname === '/security'} />
+                <NavItem to="/profile" icon={<User className="h-4 w-4 mr-2" />} label="Profile" active={location.pathname === '/profile'} />
+                <NavItem to="/settings" icon={<Settings className="h-4 w-4 mr-2" />} label="Settings" active={location.pathname === '/settings'} />
+              </>
+            ) : (
+              <>
+                <NavItem to="/sign-in" icon={<LogIn className="h-4 w-4 mr-2" />} label="Sign In" active={location.pathname === '/sign-in'} />
+                <NavItem to="/sign-up" icon={<UserPlus className="h-4 w-4 mr-2" />} label="Sign Up" active={location.pathname === '/sign-up'} />
+              </>
+            )}
           </div>
         )}
       </div>

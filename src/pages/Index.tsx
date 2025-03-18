@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
-import LoginForm from '@/components/auth/LoginForm';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { MessageSquare, Shield, Users, Lock } from 'lucide-react';
 
 const Index = () => {
@@ -18,18 +17,13 @@ const Index = () => {
     }
   }, []);
   
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    navigate('/chat');
-  };
-  
   if (isLoggedIn) {
     navigate('/chat');
     return null;
   }
 
   return (
-    <Layout className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 pt-16">
+    <Layout className="flex flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-5xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="order-2 lg:order-1 animate-fade-in">
@@ -71,22 +65,57 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-4">
               <Button 
                 className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity px-8 py-6"
-                onClick={() => document.getElementById('login-section')?.scrollIntoView({ behavior: 'smooth' })}
+                asChild
               >
-                Try it now
+                <Link to="/sign-up">
+                  Try it now
+                </Link>
               </Button>
               
               <Button 
                 variant="outline" 
                 className="border-primary hover:bg-primary/10 py-6"
+                asChild
               >
-                Learn more
+                <Link to="/features">
+                  Learn more
+                </Link>
               </Button>
             </div>
           </div>
           
-          <div id="login-section" className="order-1 lg:order-2 lg:bg-secondary/20 lg:p-8 lg:rounded-2xl animate-fade-in">
-            <LoginForm onSuccess={handleLoginSuccess} />
+          <div className="order-1 lg:order-2 lg:bg-secondary/20 lg:p-8 lg:rounded-2xl animate-fade-in">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold mb-2">Get Started With QuantaTalk</h2>
+              <p className="text-muted-foreground">Join thousands of users enjoying secure messaging</p>
+            </div>
+            
+            <div className="flex flex-col space-y-4">
+              <Button 
+                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity py-6"
+                asChild
+              >
+                <Link to="/sign-up">
+                  Create Account
+                </Link>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="w-full py-6"
+                asChild
+              >
+                <Link to="/sign-in">
+                  Sign In
+                </Link>
+              </Button>
+              
+              <div className="text-center mt-4">
+                <Link to="/about" className="text-sm text-primary hover:underline">
+                  Learn more about QuantaTalk
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@
     --card: 222 47% 13%;
     --card-foreground: 210 40% 98%;
 
+    
     --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
 
@@ -137,4 +138,26 @@
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
+}
+
+/* Adjust header and h1 styles to prevent overlap */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0.5rem;
+  background: linear-gradient(90deg, #1e3a8a, #2563eb);
+  color: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.scrolled header {
+  padding: 0.3rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+  margin-top: 3rem;
+  z-index: 0;
 }

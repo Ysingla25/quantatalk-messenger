@@ -1,6 +1,6 @@
 // src/components/Messages.tsx
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
+import { db } from "../firebaseConfig";
 import { collection, addDoc, onSnapshot } from "firebase/firestore";
 
 const Messages: React.FC = () => {

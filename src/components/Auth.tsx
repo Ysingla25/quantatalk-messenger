@@ -1,44 +1,58 @@
-// src/components/Auth.tsx
 import React, { useState } from 'react';
-import { auth } from "../firebaseConfig";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-
+import { auth, db } from '../firebaseConfig';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true); // Toggle between signup and login
 
-  const handleLogin = async () => {
-    setIsLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log('User logged in!');
+      if (isSignUp) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        // Store user details in Firestore
+        await setDoc(doc(db, 'Users', user.uid), {
+          email: email,
+          createdAt: new Date(),
+          lastLogin: new Date(),
+        });
+        console.log('User signed up:', user);
+      } else {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        console.log('User signed in:', user);
+      }
     } catch (error) {
-      console.error('Error logging in:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignUp = async () => {
-    setIsLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      console.log('User signed up!');
-    } catch (error) {
-      console.error('Error signing up:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Authentication error:', error);
+      alert(error);
     }
   };
 
   return (
     <div>
-      <input type='email' value={email} onChange={(e) => setEmail(e.target.value)} placeholder='Email' />
-      <input type='password' value={password} onChange={(e) => setPassword(e.target.value)} placeholder='Password' />
-      <button onClick={handleLogin} disabled={isLoading}>Login</button>
-      <button onClick={handleSignUp} disabled={isLoading}>Sign Up</button>
+      <h2>{isSignUp ? 'Sign Up' : 'Login'}</h2>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button type="submit">{isSignUp ? 'Sign Up' : 'Login'}</button>
+      </form>
+      <button onClick={() => setIsSignUp(!isSignUp)}>
+        {isSignUp ? 'Switch to Login' : 'Switch to Sign Up'}
+      </button>
     </div>
   );
 };

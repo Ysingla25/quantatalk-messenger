@@ -1,10 +1,12 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Lock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { auth } from '@/firebaseConfig';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -19,38 +21,38 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      if (email && password) {
-        // Demo credentials for easy testing
-        if (email === 'demo@quantatalk.com' && password === 'password') {
-          toast({
-            title: "Successfully authenticated",
-            description: "Welcome to QuantaTalk!",
-          });
-          localStorage.setItem('quantatalk-user', JSON.stringify({
-            id: '1',
-            name: 'Demo User',
-            email: 'demo@quantatalk.com',
-            avatar: null
-          }));
-          onSuccess();
-        } else {
-          toast({
-            title: "Authentication failed",
-            description: "Invalid credentials. Try demo@quantatalk.com / password",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "Missing information",
-          description: "Please fill in all fields",
-          variant: "destructive",
-        });
-      }
+    if (!email || !password) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
       setIsLoading(false);
-    }, 1000);
+      return;
+    }
+
+    try {
+      // Sign in with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      toast({
+        title: "Successfully authenticated",
+        description: "Welcome to QuantaTalk!",
+      });
+
+      // Call onSuccess callback to navigate to chat
+      onSuccess();
+    } catch (error) {
+      console.error('Error during sign in:', error);
+      toast({
+        title: "Authentication failed",
+        description: error instanceof Error ? error.message : "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -99,12 +101,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
           disabled={isLoading}
         >
-          {isLoading ? 'Authenticating...' : 'Sign In'}
+          {isLoading ? 'Signing in...' : 'Sign In'}
         </Button>
-        
+
         <div className="text-center mt-4">
           <p className="text-sm text-muted-foreground">
-            Don't have an account? <span className="text-primary cursor-pointer hover:underline">Create one</span>
+            Don't have an account?{' '}
+            <Link to="/sign-up" className="text-primary font-medium hover:underline">
+              Create Account
+            </Link>
           </p>
         </div>
       </form>

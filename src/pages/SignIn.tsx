@@ -1,5 +1,3 @@
-
-import React from 'react';
 import Layout from '@/components/layout/Layout';
 import LoginForm from '@/components/auth/LoginForm';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +6,7 @@ const SignIn = () => {
   const navigate = useNavigate();
   
   const handleLoginSuccess = () => {
-    navigate('/chat');
+    navigate('/chat', { replace: true });
   };
 
   return (

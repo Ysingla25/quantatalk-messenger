@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Lock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { auth } from '@/firebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
@@ -16,6 +16,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +43,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       });
 
       // Call onSuccess callback to navigate to chat
-      onSuccess();
+      //onSuccess();
+      //console.log('onSuccess callback called');
+      navigate('/chat', { replace: true });
     } catch (error) {
       console.error('Error during sign in:', error);
       toast({
@@ -103,16 +106,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         >
           {isLoading ? 'Signing in...' : 'Sign In'}
         </Button>
-
-        <div className="text-center mt-4">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link to="/sign-up" className="text-primary font-medium hover:underline">
-              Create Account
-            </Link>
-          </p>
-        </div>
       </form>
+      
+      <div className="text-center mt-4">
+        <Link to="/sign-up" className="text-sm text-primary hover:underline">
+          Don't have an account? Create one
+        </Link>
+      </div>
     </div>
   );
 };

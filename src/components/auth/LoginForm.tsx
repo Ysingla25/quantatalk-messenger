@@ -16,7 +16,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,15 +36,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      toast({
-        title: "Successfully authenticated",
-        description: "Welcome to QuantaTalk!",
-      });
-
-      // Call onSuccess callback to navigate to chat
-      //onSuccess();
-      //console.log('onSuccess callback called');
-      navigate('/chat', { replace: true });
+      setTimeout(() => {
+        toast({
+          title: "Successfully authenticated",
+          description: "Welcome to QuantaTalk!",
+        });
+    
+        // Call onSuccess callback to navigate to chat
+        onSuccess();
+      }, 1500);
     } catch (error) {
       console.error('Error during sign in:', error);
       toast({

@@ -6,7 +6,7 @@ const SignIn = () => {
   const navigate = useNavigate();
   
   const handleLoginSuccess = () => {
-    navigate('/chat', { replace: true });
+    navigate('/chat');
   };
 
   return (

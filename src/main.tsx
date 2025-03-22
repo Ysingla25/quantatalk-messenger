@@ -3,5 +3,6 @@ import App from './App.tsx'
 import './index.css'
 import { handleHeaderScroll } from './utils/headerScroll';
 
+
 createRoot(document.getElementById("root")!).render(<App />);
 handleHeaderScroll();

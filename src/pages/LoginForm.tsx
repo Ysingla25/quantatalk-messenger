@@ -10,16 +10,17 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginFormProps {
   onSuccess: () => void;
+  isLoading?: boolean;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setLocalLoading(true);
     
     if (!email || !password) {
       toast({
@@ -27,7 +28,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         description: "Please fill in all fields",
         variant: "destructive",
       });
-      setIsLoading(false);
+      setLocalLoading(false);
       return;
     }
 
@@ -36,15 +37,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      setTimeout(() => {
-        toast({
-          title: "Successfully authenticated",
-          description: "Welcome to QuantaTalk!",
-        });
+      toast({
+        title: "Successfully authenticated",
+        description: "Welcome to QuantaTalk!",
+      });
     
-        // Call onSuccess callback to navigate to chat
-        onSuccess();
-      }, 1500);
+      // Call onSuccess callback to navigate to chat
+      onSuccess();
     } catch (error) {
       console.error('Error during sign in:', error);
       toast({
@@ -53,7 +52,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -83,6 +82,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="bg-secondary/50 border-secondary"
+            disabled={isLoading || localLoading}
           />
         </div>
         
@@ -95,22 +95,26 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="bg-secondary/50 border-secondary"
+            disabled={isLoading || localLoading}
           />
         </div>
         
         <Button 
-          type="submit" 
-          className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
-          disabled={isLoading}
+          type="submit"
+          className="w-full bg-primary hover:bg-primary/90"
+          disabled={isLoading || localLoading}
         >
-          {isLoading ? 'Signing in...' : 'Sign In'}
+          {isLoading || localLoading ? 'Signing in...' : 'Sign In'}
         </Button>
       </form>
-      
+
       <div className="text-center mt-4">
-        <Link to="/sign-up" className="text-sm text-primary hover:underline">
-          Don't have an account? Create one
-        </Link>
+        <p className="text-sm text-muted-foreground">
+          Don't have an account?{' '}
+          <Link to="/signup" className="text-primary hover:text-primary/90">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   );

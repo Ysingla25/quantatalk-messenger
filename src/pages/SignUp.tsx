@@ -6,6 +6,9 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { auth, db } from '@/firebaseConfig';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { collection, addDoc } from 'firebase/firestore';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -39,25 +42,44 @@ const SignUp = () => {
       setIsLoading(false);
       return;
     }
-    
-    // Simulate API call for registration
-    setTimeout(() => {
+
+    try {
+      // Create user with email and password
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Update user profile with name
+      await updateProfile(user, {
+        displayName: name,
+      });
+
+      // Store additional user data in Firestore
+      const usersCollection = collection(db, 'users');
+      await addDoc(usersCollection, {
+        id: user.uid,
+        name,
+        email,
+        createdAt: new Date(),
+        lastActive: new Date()
+      });
+
       toast({
         title: "Account created successfully",
         description: "Welcome to QuantaTalk!",
       });
       
-      // In a real app, you'd want to authenticate the user right away
-      localStorage.setItem('quantatalk-user', JSON.stringify({
-        id: Date.now().toString(),
-        name,
-        email,
-        avatar: null
-      }));
-      
-      setIsLoading(false);
+      // Navigate to chat page
       navigate('/chat');
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error during signup:', error);
+      toast({
+        title: "Error creating account",
+        description: error.message || "An error occurred while creating your account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

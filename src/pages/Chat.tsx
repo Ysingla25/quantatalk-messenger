@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -11,6 +11,7 @@ import { Users, MessageSquare, Plus, LogOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { MessagingService } from '@/services/messagingService';
 
 type ChatType = 'direct' | 'group';
 
@@ -21,7 +22,8 @@ const Chat = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+  const messagingService = MessagingService.getInstance();
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -33,7 +35,7 @@ const Chat = () => {
 
     return () => unsubscribe();
   }, [navigate]);
-  
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -50,7 +52,20 @@ const Chat = () => {
       });
     }
   };
-  
+
+  const handleNewChat = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const newChat = await messagingService.createChat([
+      user.uid,
+      users[0].id // For demo, using first user
+    ], 'New Chat');
+
+    setSelectedUserId(newChat.id);
+    setActiveTab('direct');
+  };
+
   if (!currentUser) {
     return null; // or loading indicator
   }
@@ -165,10 +180,7 @@ const Chat = () => {
                 variant="ghost" 
                 size="icon" 
                 className="h-8 w-8 rounded-full"
-                onClick={() => toast({
-                  title: "Coming soon",
-                  description: "This feature will be available in a future update.",
-                })}
+                onClick={handleNewChat}
               >
                 <Plus className="h-4 w-4" />
               </Button>

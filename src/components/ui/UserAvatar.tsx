@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -18,7 +17,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
   size = 'md',
   className 
 }) => {
-  const initials = name
+  const safeName = name || 'User';
+  const initials = safeName
     .split(' ')
     .map(n => n[0])
     .join('')

@@ -44,11 +44,22 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
     
       // Call onSuccess callback to navigate to chat
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during sign in:', error);
+      let errorMessage = "Invalid credentials";
+      
+      // Handle specific Firebase auth errors
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = "No user found with this email";
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = "Incorrect password";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed attempts. Please try again later.";
+      }
+
       toast({
         title: "Authentication failed",
-        description: error instanceof Error ? error.message : "Invalid credentials",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

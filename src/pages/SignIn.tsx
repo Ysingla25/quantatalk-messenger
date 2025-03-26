@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import LoginForm from '@/pages/LoginForm';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { toast } from '@/components/ui/use-toast';
 
 const SignIn = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
   // Check if user is already authenticated
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        navigate('/chat');
+        console.log('User authenticated:', user.email);
+        // Ensure we're not on the chat page before navigating
+        if (window.location.pathname !== '/chat') {
+          navigate('/chat', { replace: true });
+        }
       }
     });
 
@@ -23,11 +26,6 @@ const SignIn = () => {
 
   const handleLoginSuccess = () => {
     setIsLoading(true);
-    // Small delay to show loading state
-    setTimeout(() => {
-      navigate('/chat');
-      setIsLoading(false);
-    }, 500);
   };
 
   return (
@@ -35,6 +33,7 @@ const SignIn = () => {
       <div className="w-full max-w-lg mx-auto">
         <LoginForm 
           onSuccess={handleLoginSuccess} 
+          isLoading={isLoading}
         />
       </div>
     </Layout>

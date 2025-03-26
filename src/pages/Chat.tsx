@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -10,6 +9,8 @@ import { cn } from '@/lib/utils';
 import { users, groups } from '@/data/users';
 import { Users, MessageSquare, Plus, LogOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { auth } from '@/firebaseConfig';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 type ChatType = 'direct' | 'group';
 
@@ -22,23 +23,32 @@ const Chat = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   useEffect(() => {
-    // Check if user is logged in
-    const userJson = localStorage.getItem('quantatalk-user');
-    if (!userJson) {
-      navigate('/');
-      return;
-    }
-    
-    setCurrentUser(JSON.parse(userJson));
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        navigate('/sign-in');
+      }
+    });
+
+    return () => unsubscribe();
   }, [navigate]);
   
-  const handleLogout = () => {
-    localStorage.removeItem('quantatalk-user');
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out",
-    });
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast({
+        title: "Error",
+        description: "Failed to log out",
+        variant: "destructive",
+      });
+    }
   };
   
   if (!currentUser) {
@@ -49,7 +59,7 @@ const Chat = () => {
     <Layout className="p-0 pt-16">
       <div className="h-[calc(100vh-64px)] flex">
         {/* Sidebar */}
-        <div className="w-full sm:w-80 lg:w-96 flex-shrink-0 glass-effect border-r border-border h-full flex flex-col">
+        <aside className="w-full sm:w-80 lg:w-96 flex-shrink-0 glass-effect border-r border-border h-full flex flex-col">
           {/* Tabs */}
           <div className="flex p-3 border-b border-border">
             <Button
@@ -80,7 +90,7 @@ const Chat = () => {
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {activeTab === 'direct' ? (
               <>
-                {users.filter(u => u.id !== currentUser.id).map(user => (
+                {users.filter(u => u.id !== currentUser.uid).map(user => (
                   <div 
                     key={user.id}
                     className={cn(
@@ -140,12 +150,12 @@ const Chat = () => {
           <div className="p-3 border-t border-border flex justify-between items-center">
             <div className="flex items-center gap-3">
               <UserAvatar 
-                name={currentUser.name} 
-                imageSrc={currentUser.avatar} 
+                name={currentUser.displayName} 
+                imageSrc={currentUser.photoURL} 
                 online={true}
               />
               <div>
-                <p className="font-medium text-sm">{currentUser.name}</p>
+                <p className="font-medium text-sm">{currentUser.displayName}</p>
                 <p className="text-xs text-muted-foreground">{currentUser.email}</p>
               </div>
             </div>
@@ -172,7 +182,7 @@ const Chat = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </aside>
         
         {/* Chat area */}
         <div className="hidden sm:block flex-1 h-full">

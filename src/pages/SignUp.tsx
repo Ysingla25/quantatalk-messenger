@@ -8,7 +8,7 @@ import { UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db } from '@/firebaseConfig';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, doc, setDoc } from 'firebase/firestore';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -23,7 +23,12 @@ const SignUp = () => {
     setIsLoading(true);
     
     // Basic validation
-    if (!name || !email || !password || !confirmPassword) {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedPassword || !trimmedConfirmPassword) {
       toast({
         title: "Missing information",
         description: "Please fill in all fields",
@@ -32,8 +37,8 @@ const SignUp = () => {
       setIsLoading(false);
       return;
     }
-    
-    if (password !== confirmPassword) {
+
+    if (trimmedPassword !== trimmedConfirmPassword) {
       toast({
         title: "Passwords don't match",
         description: "Please make sure your passwords match",
@@ -43,22 +48,46 @@ const SignUp = () => {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    // Password strength validation
+    if (trimmedPassword.length < 6) {
+      toast({
+        title: "Weak password",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       const user = userCredential.user;
 
       // Update user profile with name
       await updateProfile(user, {
-        displayName: name,
+        displayName: trimmedName,
       });
 
       // Store additional user data in Firestore
       const usersCollection = collection(db, 'users');
-      await addDoc(usersCollection, {
+      const userDocRef = doc(usersCollection, user.uid);
+      await setDoc(userDocRef, {
         id: user.uid,
-        name,
-        email,
+        name: trimmedName,
+        email: trimmedEmail,
         createdAt: new Date(),
         lastActive: new Date()
       });
@@ -72,11 +101,25 @@ const SignUp = () => {
       navigate('/chat');
     } catch (error: any) {
       console.error('Error during signup:', error);
-      toast({
-        title: "Error creating account",
-        description: error.message || "An error occurred while creating your account",
-        variant: "destructive",
-      });
+      // Only show error toast if there was an actual error
+      if (error.code) {
+        let errorMessage = "An error occurred while creating your account";
+        
+        // Handle specific Firebase errors
+        if (error.code === 'auth/invalid-email') {
+          errorMessage = "Please enter a valid email address";
+        } else if (error.code === 'auth/weak-password') {
+          errorMessage = "Password must be at least 6 characters long";
+        } else if (error.code === 'auth/email-already-in-use') {
+          errorMessage = "This email is already registered";
+        }
+
+        toast({
+          title: "Error creating account",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }

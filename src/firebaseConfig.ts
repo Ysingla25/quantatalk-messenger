@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyCNlR12brfyaSr4--8c1lxULPJ7A0C6_D4",
   authDomain: "quantatalk-messaging.firebaseapp.com",
   projectId: "quantatalk-messaging",
   storageBucket: "quantatalk-messaging.appspot.com",

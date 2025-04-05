@@ -161,7 +161,7 @@ const SignUp = () => {
           <Button
             type="button"
             onClick={handleGoogleSignUp}
-            className="w-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center gap-2"
+            className="w-full flex items-center gap-2 border border-primary"
             disabled={isLoading}
           >
             <FcGoogle className="h-5 w-5" />

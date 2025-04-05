@@ -7,6 +7,7 @@ import { Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { auth, googleProvider } from '@/firebaseConfig';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { FcGoogle } from 'react-icons/fc';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -150,10 +151,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
 
       <Button 
         onClick={handleGoogleSignIn}
-        className="w-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center gap-2"
+        className="w-full flex items-center gap-2 border border-primary"
         disabled={isLoading || localLoading}
       >
-        <Lock className="h-5 w-5" />
+      <FcGoogle className="h-5 w-5" />
         Continue with Google
       </Button>
     </div>

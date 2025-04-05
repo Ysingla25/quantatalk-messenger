@@ -4,9 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Lock } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { auth } from '@/firebaseConfig';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Link } from 'react-router-dom';
+import { auth, googleProvider } from '@/firebaseConfig';
+import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -33,22 +33,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
     }
 
     try {
-      // Sign in with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
       toast({
         title: "Successfully authenticated",
         description: "Welcome to QuantaTalk!",
       });
-    
-      // Call onSuccess callback to navigate to chat
       onSuccess();
     } catch (error: any) {
-      console.error('Error during sign in:', error);
       let errorMessage = "Invalid credentials";
-      
-      // Handle specific Firebase auth errors
       if (error.code === 'auth/user-not-found') {
         errorMessage = "No user found with this email";
       } else if (error.code === 'auth/wrong-password') {
@@ -56,10 +48,29 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = "Too many failed attempts. Please try again later.";
       }
-
       toast({
         title: "Authentication failed",
         description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLocalLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast({
+        title: "Successfully authenticated",
+        description: "Welcome to QuantaTalk!",
+      });
+      onSuccess();
+    } catch (error) {
+      toast({
+        title: "Authentication failed",
+        description: "An error occurred during Google sign-in.",
         variant: "destructive",
       });
     } finally {
@@ -122,11 +133,29 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
       <div className="text-center mt-4">
         <p className="text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-primary hover:text-primary/90">
+          <Link to="/sign-up" className="text-primary hover:text-primary/90">
             Sign up
           </Link>
         </p>
       </div>
+
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-muted-foreground/50" />
+        </div>
+        <div className="relative flex justify-center text-sm text-muted-foreground">
+          <span>OR</span>
+        </div>
+      </div>
+
+      <Button 
+        onClick={handleGoogleSignIn}
+        className="w-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center gap-2"
+        disabled={isLoading || localLoading}
+      >
+        <Lock className="h-5 w-5" />
+        Continue with Google
+      </Button>
     </div>
   );
 };

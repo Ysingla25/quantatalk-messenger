@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '@/firebaseConfig';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { auth, db, googleProvider } from '@/firebaseConfig';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
+import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
+import { FcGoogle } from 'react-icons/fc';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -21,70 +22,43 @@ const SignUp = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Basic validation
+
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
 
     if (!trimmedName || !trimmedEmail || !trimmedPassword || !trimmedConfirmPassword) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
+      toast({ title: 'Missing information', description: 'Please fill in all fields', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
 
     if (trimmedPassword !== trimmedConfirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please make sure your passwords match",
-        variant: "destructive",
-      });
+      toast({ title: "Passwords don't match", description: 'Please make sure your passwords match', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast({ title: 'Invalid email', description: 'Please enter a valid email address', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
 
-    // Password strength validation
     if (trimmedPassword.length < 6) {
-      toast({
-        title: "Weak password",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      });
+      toast({ title: 'Weak password', description: 'Password must be at least 6 characters long', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
 
     try {
-      // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       const user = userCredential.user;
 
-      // Update user profile with name
-      await updateProfile(user, {
-        displayName: trimmedName,
-      });
+      await updateProfile(user, { displayName: trimmedName });
 
-      // Store additional user data in Firestore
-      const usersCollection = collection(db, 'users');
-      const userDocRef = doc(usersCollection, user.uid);
-      await setDoc(userDocRef, {
+      await setDoc(doc(db, 'users', user.uid), {
         id: user.uid,
         name: trimmedName,
         email: trimmedEmail,
@@ -92,34 +66,42 @@ const SignUp = () => {
         lastActive: new Date()
       });
 
-      toast({
-        title: "Account created successfully",
-        description: "Welcome to QuantaTalk!",
-      });
-      
-      // Navigate to chat page
+      toast({ title: 'Account created', description: 'Welcome to QuantaTalk!' });
       navigate('/chat');
     } catch (error: any) {
-      console.error('Error during signup:', error);
-      // Only show error toast if there was an actual error
-      if (error.code) {
-        let errorMessage = "An error occurred while creating your account";
-        
-        // Handle specific Firebase errors
-        if (error.code === 'auth/invalid-email') {
-          errorMessage = "Please enter a valid email address";
-        } else if (error.code === 'auth/weak-password') {
-          errorMessage = "Password must be at least 6 characters long";
-        } else if (error.code === 'auth/email-already-in-use') {
-          errorMessage = "This email is already registered";
-        }
+      let errorMessage = 'An error occurred while creating your account';
+      if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
+      else if (error.code === 'auth/invalid-email') errorMessage = 'Invalid email address';
+      else if (error.code === 'auth/weak-password') errorMessage = 'Password too weak';
 
-        toast({
-          title: "Error creating account",
-          description: errorMessage,
-          variant: "destructive",
+      toast({ title: 'Error creating account', description: errorMessage, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsLoading(true);
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, 'users', user.uid), {
+          id: user.uid,
+          name: user.displayName || '',
+          email: user.email || '',
+          createdAt: new Date(),
+          lastActive: new Date()
         });
       }
+
+      toast({ title: 'Signed up with Google', description: `Welcome, ${user.displayName || 'User'}!` });
+      navigate('/chat');
+    } catch (error: any) {
+      console.error('Google sign-up error:', error);
+      toast({ title: 'Google Sign-up failed', description: 'Something went wrong', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -133,71 +115,58 @@ const SignUp = () => {
             <UserPlus className="h-8 w-8 text-white" />
           </div>
         </div>
-        
+
         <h2 className="text-2xl font-bold text-center mb-6 text-gradient">Join QuantaTalk</h2>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-secondary/50 border-secondary"
-            />
+            <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="bg-secondary/50 border-secondary"
-            />
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Create a password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-secondary/50 border-secondary"
-            />
+            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirm Password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              placeholder="Confirm your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="bg-secondary/50 border-secondary"
-            />
+            <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm your password" />
           </div>
-          
-          <Button 
-            type="submit" 
-            className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
-            disabled={isLoading}
-          >
+
+          <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent" disabled={isLoading}>
             {isLoading ? 'Creating Account...' : 'Create Account'}
           </Button>
-          
+
           <div className="text-center mt-4">
             <p className="text-sm text-muted-foreground">
               Already have an account? <Link to="/sign-in" className="text-primary hover:underline">Sign In</Link>
             </p>
           </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-muted-foreground/50" />
+            </div>
+            <div className="relative flex justify-center text-sm text-muted-foreground">
+              <span>OR</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleGoogleSignUp}
+            className="w-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center gap-2"
+            disabled={isLoading}
+          >
+            <FcGoogle className="h-5 w-5" />
+            Continue with Google
+          </Button>
         </form>
       </div>
     </Layout>

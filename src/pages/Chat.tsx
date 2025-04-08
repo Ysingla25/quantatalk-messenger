@@ -5,6 +5,7 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import DirectChat from '@/components/messages/DirectChat';
 import GroupChat from '@/components/messages/GroupChat';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { users, groups } from '@/data/users';
 import { Users, MessageSquare, Plus, LogOut } from 'lucide-react';
@@ -12,6 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
+import { ContactImport } from '@/components/contacts/ContactImport';
 
 type ChatType = 'direct' | 'group';
 
@@ -22,6 +24,8 @@ const Chat = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isContactImportOpen, setIsContactImportOpen] = useState(false);
+
   const messagingService = MessagingService.getInstance();
 
   useEffect(() => {
@@ -57,17 +61,21 @@ const Chat = () => {
     const user = auth.currentUser;
     if (!user) return;
 
-    const newChat = await messagingService.createChat([
-      user.uid,
-      users[0].id // For demo, using first user
-    ], 'New Chat');
+    const newChat = await messagingService.createChat(
+      [user.uid, users[0].id], // For demo
+      'New Chat'
+    );
 
     setSelectedUserId(newChat.id);
     setActiveTab('direct');
   };
 
   if (!currentUser) {
-    return null; // or loading indicator
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <span className="text-muted-foreground">Loading...</span>
+      </div>
+    );
   }
 
   return (
@@ -75,6 +83,7 @@ const Chat = () => {
       <div className="h-[calc(100vh-64px)] flex">
         {/* Sidebar */}
         <aside className="w-full sm:w-80 lg:w-96 flex-shrink-0 glass-effect border-r border-border h-full flex flex-col">
+          
           {/* Tabs */}
           <div className="flex p-3 border-b border-border">
             <Button
@@ -100,8 +109,20 @@ const Chat = () => {
               Groups
             </Button>
           </div>
-          
-          {/* Chat list */}
+
+          {/* Import Contacts Button */}
+          <div className="p-3">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => setIsContactImportOpen(true)}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Import Contacts
+            </Button>
+          </div>
+
+          {/* Chat List */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {activeTab === 'direct' ? (
               <>
@@ -112,7 +133,10 @@ const Chat = () => {
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors",
                       selectedUserId === user.id && "bg-secondary"
                     )}
-                    onClick={() => setSelectedUserId(user.id)}
+                    onClick={() => {
+                      setSelectedUserId(user.id);
+                      setSelectedGroupId(null);
+                    }}
                   >
                     <UserAvatar 
                       name={user.name} 
@@ -140,7 +164,10 @@ const Chat = () => {
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors",
                       selectedGroupId === group.id && "bg-secondary"
                     )}
-                    onClick={() => setSelectedGroupId(group.id)}
+                    onClick={() => {
+                      setSelectedGroupId(group.id);
+                      setSelectedUserId(null);
+                    }}
                   >
                     <UserAvatar 
                       name={group.name} 
@@ -160,7 +187,7 @@ const Chat = () => {
               </>
             )}
           </div>
-          
+
           {/* Footer */}
           <div className="p-3 border-t border-border flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -195,7 +222,7 @@ const Chat = () => {
             </div>
           </div>
         </aside>
-        
+
         {/* Chat area */}
         <div className="hidden sm:block flex-1 h-full">
           {selectedUserId ? (
@@ -217,6 +244,13 @@ const Chat = () => {
           )}
         </div>
       </div>
+
+      {/* Contact import modal */}
+      <Dialog open={isContactImportOpen} onOpenChange={setIsContactImportOpen}>
+        <DialogContent>
+          <ContactImport />
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

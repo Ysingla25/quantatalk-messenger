@@ -1,7 +1,8 @@
 // src/services/contactService.ts
-import { auth } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import axios from 'axios';
+import { doc, setDoc } from 'firebase/firestore';
 
 export class ContactService {
   private static instance: ContactService;
@@ -16,6 +17,21 @@ export class ContactService {
     return ContactService.instance;
   }
 
+  async addContact(userId: string, contactData: any): Promise<void> {
+    try {
+      // Add the contact to Firestore
+      const contactRef = doc(db, 'Contacts', userId, 'contacts', contactData.id);
+      await setDoc(contactRef, {
+        ...contactData,
+        createdAt: new Date(),
+        lastUpdated: new Date()
+      });
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      throw error;
+    }
+  }
+  
   async importGoogleContacts(): Promise<any[]> {
     try {
       // First, get Google credentials

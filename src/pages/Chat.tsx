@@ -14,6 +14,7 @@ import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
 import { ContactImport } from '@/components/contacts/contactImport';
+import ErrorBoundary from '@/ErrorBoundary';
 
 type ChatType = 'direct' | 'group';
 

@@ -67,3 +67,7 @@ export class ContactService {
     }
   }
 }
+
+
+// Export the singleton instance
+export const contactService = ContactService.getInstance();

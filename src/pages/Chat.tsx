@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
-import { ContactImport } from '@/components/contacts/ContactImport';
+import { ContactImport } from '@/components/contacts/contactImport';
 
 type ChatType = 'direct' | 'group';
 

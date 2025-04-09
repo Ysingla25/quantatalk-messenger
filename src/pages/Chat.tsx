@@ -24,6 +24,8 @@ const Chat = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isContactImportOpen, setIsContactImportOpen] = useState(false);
 
   const messagingService = MessagingService.getInstance();
@@ -32,13 +34,42 @@ const Chat = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
+        setLoading(false);
+        setError(null);
       } else {
+        setLoading(false);
         navigate('/sign-in');
       }
     });
 
     return () => unsubscribe();
   }, [navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="text-muted-foreground">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-destructive">{error}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return null; // This shouldn't happen as we redirect in auth state change
+  }
 
   const handleLogout = async () => {
     try {
@@ -69,14 +100,6 @@ const Chat = () => {
     setSelectedUserId(newChat.id);
     setActiveTab('direct');
   };
-
-  if (!currentUser) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <span className="text-muted-foreground">Loading...</span>
-      </div>
-    );
-  }
 
   return (
     <Layout className="p-0 pt-16">

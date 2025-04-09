@@ -12,6 +12,7 @@ import SignUp from "./pages/SignUp";
 import About from "./pages/About";
 import Features from "./pages/Features";
 import Profile from "./pages/Profile";
+import ErrorBoundary from './ErrorBoundary';
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+      <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/chat" element={<Chat />} />
@@ -34,6 +36,7 @@ const App = () => (
           <Route path="/settings" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+      </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

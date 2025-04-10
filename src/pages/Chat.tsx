@@ -13,8 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
-import { ContactImport } from '@/components/contacts/contactImport';
-import ErrorBoundary from '@/ErrorBoundary';
+import { User } from 'firebase/auth';
 
 type ChatType = 'direct' | 'group';
 
@@ -24,7 +23,7 @@ const Chat = () => {
   const [activeTab, setActiveTab] = useState<ChatType>('direct');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isContactImportOpen, setIsContactImportOpen] = useState(false);
@@ -32,11 +31,16 @@ const Chat = () => {
   const messagingService = MessagingService.getInstance();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user);
-        setLoading(false);
-        setError(null);
+        try {
+          setCurrentUser(user);
+          setLoading(false);
+          setError(null);
+        } catch (err) {
+          setError('Failed to load user data');
+          setLoading(false);
+        }
       } else {
         setLoading(false);
         navigate('/sign-in');
@@ -90,16 +94,33 @@ const Chat = () => {
   };
 
   const handleNewChat = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!currentUser || !selectedUserId) {
+      toast({
+        title: "Error",
+        description: "Please select a user to chat with",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    const newChat = await messagingService.createChat(
-      [user.uid, users[0].id], // For demo
-      'New Chat'
-    );
-
-    setSelectedUserId(newChat.id);
-    setActiveTab('direct');
+    try {
+      const newChat = await messagingService.createChat(
+        [currentUser.uid, selectedUserId],
+        `Chat with ${selectedUserId}`
+      );
+      setSelectedUserId(newChat.id);
+      toast({
+        title: "Success",
+        description: "New chat created"
+      });
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create chat",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -268,13 +289,6 @@ const Chat = () => {
           )}
         </div>
       </div>
-
-      {/* Contact import modal */}
-      <Dialog open={isContactImportOpen} onOpenChange={setIsContactImportOpen}>
-        <DialogContent>
-          <ContactImport />
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 };

@@ -10,6 +10,7 @@ import { auth, db, googleProvider } from '@/firebaseConfig';
 import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { FcGoogle } from 'react-icons/fc';
+import { GoogleAuthProvider } from 'firebase/auth';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -18,6 +19,9 @@ const SignUp = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Initialize Google provider
+  const googleAuthProvider = new GoogleAuthProvider();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +77,8 @@ const SignUp = () => {
       if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
       else if (error.code === 'auth/invalid-email') errorMessage = 'Invalid email address';
       else if (error.code === 'auth/weak-password') errorMessage = 'Password too weak';
+      else if (error.code === 'auth/too-many-requests') errorMessage = 'Too many attempts, please try again later';
+      else if (error.code === 'auth/network-request-failed') errorMessage = 'Network error, please check your connection';
 
       toast({ title: 'Error creating account', description: errorMessage, variant: 'destructive' });
     } finally {
@@ -83,25 +89,37 @@ const SignUp = () => {
   const handleGoogleSignUp = async () => {
     try {
       setIsLoading(true);
-      const result = await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleAuthProvider);
       const user = result.user;
+
+      if (!user) {
+        throw new Error('No user data received from Google');
+      }
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
+        if (!user.displayName || !user.email) {
+          throw new Error('Invalid Google profile data');
+        }
+
         await setDoc(doc(db, 'users', user.uid), {
           id: user.uid,
-          name: user.displayName || '',
-          email: user.email || '',
+          name: user.displayName,
+          email: user.email,
           createdAt: new Date(),
           lastActive: new Date()
         });
       }
 
-      toast({ title: 'Signed up with Google', description: `Welcome, ${user.displayName || 'User'}!` });
+      toast({ title: 'Signed up with Google', description: `Welcome, ${user.displayName}!` });
       navigate('/chat');
     } catch (error: any) {
-      console.error('Google sign-up error:', error);
-      toast({ title: 'Google Sign-up failed', description: 'Something went wrong', variant: 'destructive' });
+      let errorMessage = 'An error occurred while signing up with Google';
+      if (error.code === 'auth/popup-closed-by-user') errorMessage = 'Popup was closed by user';
+      else if (error.code === 'auth/cancelled-popup-request') errorMessage = 'Operation cancelled';
+      else if (error.code === 'auth/network-request-failed') errorMessage = 'Network error, please check your connection';
+
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }

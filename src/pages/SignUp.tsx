@@ -101,7 +101,6 @@ const SignUp = () => {
         if (!user.displayName || !user.email) {
           throw new Error('Invalid Google profile data');
         }
-
         await setDoc(doc(db, 'users', user.uid), {
           id: user.uid,
           name: user.displayName,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db, googleProvider } from '@/firebaseConfig';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
-import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/firebaseConfig';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, updateEmail, signInWithRedirect } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { FcGoogle } from 'react-icons/fc';
 import { GoogleAuthProvider } from 'firebase/auth';
 
@@ -86,39 +86,70 @@ const SignUp = () => {
     }
   };
 
+  // Add the useEffect hook here
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          
+          if (userDoc.exists()) {
+            toast({ 
+              title: 'Account exists', 
+              description: 'This Google account is already associated with another account. Please sign in instead.', 
+              variant: 'destructive' 
+            });
+            navigate('/sign-in');
+            return;
+          }
+  
+          await updateProfile(user, { displayName: user.displayName });
+          await updateEmail(user, user.email);
+  
+          await setDoc(doc(db, 'users', user.uid), {
+            id: user.uid,
+            name: user.displayName,
+            email: user.email,
+            createdAt: new Date(),
+            lastActive: new Date()
+          });
+  
+          toast({ 
+            title: 'Welcome!', 
+            description: `Welcome to QuantaTalk, ${user.displayName}! Please complete your profile to get started.`, 
+            duration: 5000 
+          });
+          navigate('/profile-completion');
+        } catch (error: any) {
+          console.error('Post-sign-in error:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to complete sign-up. Please try signing in again.',
+            variant: 'destructive'
+          });
+        }
+      }
+    });
+  
+    return () => unsubscribe(); // Cleanup the listener
+  }, [navigate]);
+
   const handleGoogleSignUp = async () => {
     try {
       setIsLoading(true);
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const user = result.user;
-
-      if (!user) {
-        throw new Error('No user data received from Google');
-      }
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        if (!user.displayName || !user.email) {
-          throw new Error('Invalid Google profile data');
-        }
-        await setDoc(doc(db, 'users', user.uid), {
-          id: user.uid,
-          name: user.displayName,
-          email: user.email,
-          createdAt: new Date(),
-          lastActive: new Date()
-        });
-      }
-
-      toast({ title: 'Signed up with Google', description: `Welcome, ${user.displayName}!` });
-      navigate('/chat');
+      toast({
+        title: 'Redirecting to Google...',
+        description: 'Please complete the sign-in process in the next window',
+        duration: 3000
+      });
+      await signInWithRedirect(auth, googleAuthProvider);
     } catch (error: any) {
-      let errorMessage = 'An error occurred while signing up with Google';
-      if (error.code === 'auth/popup-closed-by-user') errorMessage = 'Popup was closed by user';
-      else if (error.code === 'auth/cancelled-popup-request') errorMessage = 'Operation cancelled';
-      else if (error.code === 'auth/network-request-failed') errorMessage = 'Network error, please check your connection';
-
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+      console.error('Google sign-up error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to start sign-in process. Please try again.',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }

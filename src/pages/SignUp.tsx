@@ -7,10 +7,10 @@ import { toast } from '@/components/ui/use-toast';
 import { UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db } from '@/firebaseConfig';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, updateEmail, signInWithRedirect } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { FcGoogle } from 'react-icons/fc';
-import { GoogleAuthProvider } from 'firebase/auth';
+import { googleProvider } from '@/firebaseConfig';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -19,9 +19,6 @@ const SignUp = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  // Initialize Google provider
-  const googleAuthProvider = new GoogleAuthProvider();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,74 +83,96 @@ const SignUp = () => {
     }
   };
 
-  // Add the useEffect hook here
+  // UseEffect hook to handle Google sign-in result
+  // Remove the useEffect with getRedirectResult and replace it with this:
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          
-          if (userDoc.exists()) {
-            toast({ 
-              title: 'Account exists', 
-              description: 'This Google account is already associated with another account. Please sign in instead.', 
-              variant: 'destructive' 
-            });
-            navigate('/sign-in');
-            return;
-          }
-  
-          await updateProfile(user, { displayName: user.displayName });
-          await updateEmail(user, user.email);
-  
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+        if (userDoc.exists()) {
+          // User already exists
+          toast({
+            title: 'Welcome back!',
+            description: 'You are now signed in.',
+          });
+          navigate('/chat', { replace: true });
+        } else {
+          // New user
           await setDoc(doc(db, 'users', user.uid), {
             id: user.uid,
-            name: user.displayName,
-            email: user.email,
+            name: user.displayName || '',
+            email: user.email || '',
             createdAt: new Date(),
-            lastActive: new Date()
+            lastActive: new Date(),
           });
-  
-          toast({ 
-            title: 'Welcome!', 
-            description: `Welcome to QuantaTalk, ${user.displayName}! Please complete your profile to get started.`, 
-            duration: 5000 
-          });
-          navigate('/profile-completion');
-        } catch (error: any) {
-          console.error('Post-sign-in error:', error);
+
           toast({
-            title: 'Error',
-            description: 'Failed to complete sign-up. Please try signing in again.',
-            variant: 'destructive'
+            title: 'Welcome!',
+            description: 'Your account has been created.',
           });
+          navigate('/profile-completion', { replace: true });
         }
       }
     });
-  
-    return () => unsubscribe(); // Cleanup the listener
+
+    return () => unsubscribe(); // Cleanup subscription
   }, [navigate]);
 
+  // Update the handleGoogleSignUp function:
   const handleGoogleSignUp = async () => {
     try {
       setIsLoading(true);
       toast({
-        title: 'Redirecting to Google...',
-        description: 'Please complete the sign-in process in the next window',
-        duration: 3000
+        title: 'Signing in...',
+        description: 'Please complete the authentication in the popup window',
+        duration: 3000,
       });
-      await signInWithRedirect(auth, googleAuthProvider);
+
+      await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error('Google sign-up error:', error);
+    
+      let errorMessage = 'Failed to sign in with Google';
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Authentication window was closed. Please try again.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Authentication was cancelled.';
+      }
+
       toast({
         title: 'Error',
-        description: 'Failed to start sign-in process. Please try again.',
-        variant: 'destructive'
+        description: errorMessage,
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  // const handleGoogleSignUp = () => {
+  //   const provider = new GoogleAuthProvider();
+  //   // console.log(provider);
+  //   signInWithPopup(auth, provider)
+  //     .then(async(result) => {
+  //       console.log('Firebase Auth Result:', result);
+  //       if (result.user) {
+  //         console.log('User ID:', result.user.uid);
+  //         console.log('Display Name:', result.user.displayName);
+  //         console.log('Email:', result.user.email);
+  //         console.log('Photo URL:', result.user.photoURL);
+  //       }
+  //     })
+  //     .catch((error: any) => {
+  //       console.error('Google sign-up error:', error);
+  //       if (error.code === 'auth/popup-closed-by-user') {
+  //         console.log('User closed the popup window');
+  //       } else {
+  //         console.error('Other error:', error.message);
+  //       }
+  //     });
+  // }
 
   return (
     <Layout className="flex items-center justify-center p-4 md:p-8">

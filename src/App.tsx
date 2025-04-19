@@ -13,6 +13,7 @@ import About from "./pages/About";
 import Features from "./pages/Features";
 import Profile from "./pages/Profile";
 import ErrorBoundary from './ErrorBoundary';
+import ProfileCompletion from "./pages/ProfileCompletion";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/features" element={<Features />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/profile-completion" element={<ProfileCompletion />} />
           <Route path="/security" element={<NotFound />} />
           <Route path="/settings" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />

@@ -5,13 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCNlR12brfyaSr4--8c1lxULPJ7A0C6_D4",
-  authDomain: "quantatalk-messaging.firebaseapp.com",
-  projectId: "quantatalk-messaging",
-  storageBucket: "quantatalk-messaging.appspot.com",
-  messagingSenderId: "980955297515",
-  appId: "1:980955297515:web:6088b48e2eaf9b1373b0ae",
-  measurementId: "G-614PW91WG4"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

@@ -5,15 +5,21 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import DirectChat from '@/components/messages/DirectChat';
 import GroupChat from '@/components/messages/GroupChat';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { users, groups } from '@/data/users';
+import { users } from '@/data/users';
 import { Users, MessageSquare, Plus, LogOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
 import { User } from 'firebase/auth';
+import { getGoogleContacts } from '../services/googleContacts';
+import { CredentialResponse, GoogleLogin } from '@react-oauth/google';
+import { DialogHeader } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
+import { saveContactsToFirestore } from '../services/saveContactsToFirestore';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 
 type ChatType = 'direct' | 'group';
 
@@ -27,8 +33,17 @@ const Chat = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isContactImportOpen, setIsContactImportOpen] = useState(false);
+  const [importedContacts, setImportedContacts] = useState<any[]>([]);
+  const [userContacts, setUserContacts] = useState<any[]>([]);
 
   const messagingService = MessagingService.getInstance();
+
+  // Fetch saved contacts from Firestore
+  const fetchSavedContacts = async (uid: string) => {
+    const contactsSnapshot = await getDocs(collection(db, `users/${uid}/contacts`));
+    const contactsList = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setUserContacts(contactsList);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -37,6 +52,7 @@ const Chat = () => {
           setCurrentUser(user);
           setLoading(false);
           setError(null);
+          fetchSavedContacts(user.uid); // Fetch user contacts
         } catch (err) {
           setError('Failed to load user data');
           setLoading(false);
@@ -49,6 +65,96 @@ const Chat = () => {
 
     return () => unsubscribe();
   }, [navigate]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleContactImport = async (credentialResponse: CredentialResponse) => {
+    try {
+      const token = credentialResponse.credential;
+      
+      // Create URL with parameters
+      const url = new URL('https://people.googleapis.com/v1/people/me/connections');
+      url.searchParams.append('personFields', 'names,emailAddresses,photos');
+      url.searchParams.append('pageSize', '2000');
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || response.statusText;
+        
+        // Handle specific error cases
+        if (response.status === 403) {
+          throw new Error('Access denied. Please check your Google account permissions and try again.');
+        }
+        
+        throw new Error(`Failed to fetch contacts: ${errorMessage}`);
+      }
+
+      const data = await response.json();
+      const contacts = data.connections?.map((person: any) => ({
+        name: person.names?.[0]?.displayName || 'Unknown',
+        email: person.emailAddresses?.[0]?.value || 'No Email',
+        avatar: person.photos?.[0]?.url || '',
+        id: person.resourceName
+      })) || [];
+
+      setImportedContacts(contacts);
+
+      toast({
+        title: "Contacts Found",
+        description: `Found ${contacts.length} contacts. Please confirm to save.`,
+      });
+    } catch (error) {
+      console.error('Error importing contacts:', error);
+      
+      // Provide more specific error messages
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Could not fetch contacts";
+      
+      toast({
+        title: "Import Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmAndSaveContacts = async () => {
+    if (!currentUser || importedContacts.length === 0) return;
+
+    await saveContactsToFirestore(currentUser.uid, importedContacts);
+    setImportedContacts([]);
+    fetchSavedContacts(currentUser.uid);
+    setIsContactImportOpen(false);
+
+    toast({
+      title: "Success",
+      description: "Contacts saved to Firestore",
+    });
+  };
 
   if (loading) {
     return (
@@ -75,53 +181,6 @@ const Chat = () => {
   if (!currentUser) {
     return null; // This shouldn't happen as we redirect in auth state change
   }
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
-    } catch (error) {
-      console.error('Error during logout:', error);
-      toast({
-        title: "Error",
-        description: "Failed to log out",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleNewChat = async () => {
-    if (!currentUser || !selectedUserId) {
-      toast({
-        title: "Error",
-        description: "Please select a user to chat with",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const newChat = await messagingService.createChat(
-        [currentUser.uid, selectedUserId],
-        `Chat with ${selectedUserId}`
-      );
-      setSelectedUserId(newChat.id);
-      toast({
-        title: "Success",
-        description: "New chat created"
-      });
-    } catch (error) {
-      console.error('Error creating chat:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create chat",
-        variant: "destructive"
-      });
-    }
-  };
 
   return (
     <Layout className="p-0 pt-16">
@@ -165,13 +224,34 @@ const Chat = () => {
               <Users className="mr-2 h-4 w-4" />
               Import Contacts
             </Button>
+            <Dialog open={isContactImportOpen} onOpenChange={setIsContactImportOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Contacts</DialogTitle>
+                  <DialogDescription>
+                    Import your Google contacts to find friends
+                  </DialogDescription>
+                </DialogHeader>
+                <GoogleLogin
+                  onSuccess={handleContactImport}
+                  onError={() => console.error('Google login failed')}
+                  useOneTap={false}
+                  promptMomentNotification={() => {}}
+                />
+                {importedContacts.length > 0 && (
+                  <Button onClick={confirmAndSaveContacts} className="mt-4 w-full">
+                    Confirm and Save Contacts
+                  </Button>
+                )}
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {activeTab === 'direct' ? (
               <>
-                {users.filter(u => u.id !== currentUser.uid).map(user => (
+                {userContacts.map(user => (
                   <div 
                     key={user.id}
                     className={cn(
@@ -186,50 +266,30 @@ const Chat = () => {
                     <UserAvatar 
                       name={user.name} 
                       imageSrc={user.avatar} 
-                      online={user.status === 'online'}
+                      online={true}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-1">
                         <h3 className="font-medium truncate">{user.name}</h3>
-                        <span className="text-xs text-muted-foreground">12m</span>
+                        <span className="text-xs text-muted-foreground">Now</span>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {user.status === 'online' ? 'Online' : 'Offline'}
-                      </p>
+                      <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                     </div>
                   </div>
                 ))}
               </>
             ) : (
-              <>
-                {groups.map(group => (
-                  <div 
-                    key={group.id}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors",
-                      selectedGroupId === group.id && "bg-secondary"
-                    )}
-                    onClick={() => {
-                      setSelectedGroupId(group.id);
-                      setSelectedUserId(null);
-                    }}
-                  >
-                    <UserAvatar 
-                      name={group.name} 
-                      imageSrc={group.avatar}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <h3 className="font-medium truncate">{group.name}</h3>
-                        <span className="text-xs text-muted-foreground">17m</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {group.members.length} members
-                      </p>
-                    </div>
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="text-center p-4 max-w-md">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="h-8 w-8 text-primary" />
                   </div>
-                ))}
-              </>
+                  <h2 className="text-xl font-bold mb-2">Select a conversation</h2>
+                  <p className="text-muted-foreground">
+                    Choose a contact or group from the list to start messaging
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 
@@ -252,7 +312,6 @@ const Chat = () => {
                 variant="ghost" 
                 size="icon" 
                 className="h-8 w-8 rounded-full"
-                onClick={handleNewChat}
               >
                 <Plus className="h-4 w-4" />
               </Button>

@@ -14,8 +14,6 @@ import Features from "./pages/Features";
 import Profile from "./pages/Profile";
 import ErrorBoundary from './ErrorBoundary';
 import ProfileCompletion from "./pages/ProfileCompletion";
-import AuthCallback from "./pages/AuthCallback";
-import { GoogleContactImport } from "./components/GoogleContactImport";
 
 const queryClient = new QueryClient();
 
@@ -38,9 +36,7 @@ const App = () => (
           <Route path="/profile-completion" element={<ProfileCompletion />} />
           <Route path="/security" element={<NotFound />} />
           <Route path="/settings" element={<NotFound />} />
-          <Route path="/import" element={<GoogleContactImport />} />
           <Route path="*" element={<NotFound />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
         </Routes>
       </ErrorBoundary>
       </BrowserRouter>

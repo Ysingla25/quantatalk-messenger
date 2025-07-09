@@ -14,7 +14,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
 import { User } from 'firebase/auth';
 import { getGoogleContacts } from '../services/googleContacts';
-import { CredentialResponse, GoogleLogin } from '@react-oauth/google';
+import { CredentialResponse, GoogleLogin, useGoogleLogin } from '@react-oauth/google';
 import { DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
 import { saveContactsToFirestore } from '../services/saveContactsToFirestore';
@@ -82,21 +82,30 @@ const Chat = () => {
     }
   };
 
-  const handleContactImport = async (credentialResponse: CredentialResponse) => {
+  const handleContactImport = async (token: string) => {
     try {
-      const token = credentialResponse.credential;
-      
+      if (!currentUser) {
+        throw new Error('No user is currently logged in');
+      }
+
+      // Show loading state
+      toast({
+        title: "Importing Contacts",
+        description: "Fetching your Google contacts...",
+        duration: 3000,
+      });
+
       // Create URL with parameters
       const url = new URL('https://people.googleapis.com/v1/people/me/connections');
       url.searchParams.append('personFields', 'names,emailAddresses,photos');
       url.searchParams.append('pageSize', '2000');
 
+      // Make API call with the provided OAuth token
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
       });
 
@@ -104,7 +113,10 @@ const Chat = () => {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error?.message || response.statusText;
         
-        // Handle specific error cases
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please try signing in again.');
+        }
+
         if (response.status === 403) {
           throw new Error('Access denied. Please check your Google account permissions and try again.');
         }
@@ -117,25 +129,24 @@ const Chat = () => {
         name: person.names?.[0]?.displayName || 'Unknown',
         email: person.emailAddresses?.[0]?.value || 'No Email',
         avatar: person.photos?.[0]?.url || '',
-        id: person.resourceName
+        id: person.resourceName.replace('people/', '')
       })) || [];
 
       setImportedContacts(contacts);
 
       toast({
         title: "Contacts Found",
-        description: `Found ${contacts.length} contacts. Please confirm to save.`,
+        description: `Found ${contacts.length} contacts.`,
       });
     } catch (error) {
       console.error('Error importing contacts:', error);
       
-      // Provide more specific error messages
       const errorMessage = error instanceof Error 
         ? error.message 
-        : "Could not fetch contacts";
-      
+        : 'Failed to import contacts';
+
       toast({
-        title: "Import Failed",
+        title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
@@ -155,6 +166,48 @@ const Chat = () => {
       description: "Contacts saved to Firestore",
     });
   };
+
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const accessToken = tokenResponse.access_token;
+        
+        if (!accessToken) {
+          throw new Error('No access token returned from Google');
+        }
+        
+        // Use the access token to fetch user info
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        if (!userInfoResponse.ok) {
+          throw new Error('Failed to fetch user info');
+        }
+
+        // Use the access token to fetch contacts
+        await handleContactImport(accessToken);
+        
+      } catch (error) {
+        console.error('Error during Google Sign-In:', error);
+        toast({
+          title: "Error",
+          description: "Failed to authenticate with Google. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Google sign-in failed. Please try again.",
+        variant: "destructive",
+      });
+    },
+    scope: 'https://www.googleapis.com/auth/contacts.readonly',
+  });
 
   if (loading) {
     return (
@@ -217,12 +270,11 @@ const Chat = () => {
           {/* Import Contacts Button */}
           <div className="p-3">
             <Button 
-              variant="ghost" 
+              onClick={() => googleLogin()}
               className="w-full justify-start"
-              onClick={() => setIsContactImportOpen(true)}
             >
               <Users className="mr-2 h-4 w-4" />
-              Import Contacts
+              Import Google Contacts
             </Button>
             <Dialog open={isContactImportOpen} onOpenChange={setIsContactImportOpen}>
               <DialogContent>
@@ -232,17 +284,38 @@ const Chat = () => {
                     Import your Google contacts to find friends
                   </DialogDescription>
                 </DialogHeader>
-                <GoogleLogin
-                  onSuccess={handleContactImport}
-                  onError={() => console.error('Google login failed')}
-                  useOneTap={false}
-                  promptMomentNotification={() => {}}
-                />
-                {importedContacts.length > 0 && (
-                  <Button onClick={confirmAndSaveContacts} className="mt-4 w-full">
-                    Confirm and Save Contacts
-                  </Button>
-                )}
+                <div className="mt-4">
+                  {importedContacts.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-medium mb-2">Found Contacts</h3>
+                      <div className="space-y-2">
+                        {importedContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="flex items-center gap-2 p-2 bg-gray-100 rounded"
+                          >
+                            <img
+                              src={contact.avatar}
+                              alt={contact.name}
+                              className="w-8 h-8 rounded-full"
+                            />
+                            <div>
+                              <p className="font-medium">{contact.name}</p>
+                              <p className="text-sm text-gray-600">{contact.email}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Button
+                        className="mt-4 w-full"
+                        onClick={confirmAndSaveContacts}
+                      >
+                        Save Contacts
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </DialogContent>
             </Dialog>
           </div>

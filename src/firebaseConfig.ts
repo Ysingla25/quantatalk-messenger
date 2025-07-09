@@ -25,3 +25,10 @@ export const auth = getAuth(app);
 
 // Initialize Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: 'consent',
+  access_type: 'offline'
+});
+
+googleProvider.addScope('https://www.googleapis.com/auth/contacts.readonly');

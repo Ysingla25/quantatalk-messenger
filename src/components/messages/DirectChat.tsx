@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { MessagingService, Message } from '@/services/messagingService';
+import { ChatService } from '@/services/chatService';
 import ChatHeader from './ChatHeader';
 import { users } from '@/data/users';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DirectChatProps {
   userId: string;
@@ -16,26 +17,53 @@ interface DirectChatProps {
 }
 
 const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [chatId, setChatId] = useState<string | null>(null);
   const messagingService = MessagingService.getInstance();
-  const currentUser = JSON.parse(localStorage.getItem('quantatalk-user') || '{}');
+  const chatService = ChatService.getInstance();
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const unsubscribe = messagingService.subscribeToMessages(userId, setMessages);
-    const getUser = users.find(u => u.id === userId);
-    setUser(getUser);
-    return () => unsubscribe();
-  }, [userId]);
+    const initializeChat = async () => {
+      if (!currentUser) return;
+      
+      try {
+        // Get or create chat session
+        const sessionId = await chatService.getOrCreateDirectChat(currentUser.uid, userId);
+        setChatId(sessionId);
+        
+        // Subscribe to messages for this chat
+        const unsubscribe = messagingService.subscribeToMessages(sessionId, setMessages);
+        
+        // Get user info from demo data (in real app, this would come from Firestore)
+        const getUser = users.find(u => u.id === userId);
+        setUser(getUser);
+        
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize chat",
+          variant: "destructive",
+        });
+      }
+    };
+
+    const unsubscribe = initializeChat();
+    return () => {
+      unsubscribe.then(unsub => unsub && unsub());
+    };
+  }, [userId, currentUser]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !chatId) return;
 
     try {
-      await messagingService.sendMessage(userId, newMessage);
+      await messagingService.sendMessage(chatId, newMessage);
       setNewMessage('');
     } catch (error) {
       toast({

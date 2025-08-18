@@ -1,6 +1,6 @@
 // src/ErrorBoundary.tsx
 import React, { Component } from 'react';
-import { Button } from 'react-day-picker';
+import { Button } from '@/components/ui/button';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;

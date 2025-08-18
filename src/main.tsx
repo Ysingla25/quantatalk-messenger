@@ -5,8 +5,6 @@ import { useHeaderScroll } from './utils/headerScroll';
 import React from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 
-console.log('Google Client ID:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
-
 function Root() {
   useHeaderScroll();
   return <App />;

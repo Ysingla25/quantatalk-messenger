@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { MessageSquare, Users, Lock, User, Settings, Info, Zap, LogIn, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const isLoggedIn = localStorage.getItem('quantatalk-user') !== null;
+  const { isAuthenticated } = useAuth();
 
   return (
     <nav className="glass-effect py-4 px-4 md:px-6 fixed top-0 left-0 right-0 z-50">
@@ -18,8 +19,8 @@ const Navbar: React.FC = () => {
           to="/" 
           className="flex items-center gap-2 group"
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm">
-            QT
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img src="favicon.ico" alt="QT" className="w-full h-full object-contain" />
           </div>
           <span className="text-xl font-bold text-gradient tracking-tight">QuantaTalk</span>
         </Link>
@@ -43,7 +44,7 @@ const Navbar: React.FC = () => {
           <NavItem to="/about" icon={<Info className="h-4 w-4 mr-1" />} label="About" active={location.pathname === '/about'} />
           <NavItem to="/features" icon={<Zap className="h-4 w-4 mr-1" />} label="Features" active={location.pathname === '/features'} />
           
-          {isLoggedIn ? (
+          {isAuthenticated ? (
             <>
               <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-1" />} label="Messages" active={location.pathname.includes('/chat')} />
               <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-1" />} label="Groups" active={location.pathname === '/groups'} />
@@ -79,7 +80,7 @@ const Navbar: React.FC = () => {
             <NavItem to="/about" icon={<Info className="h-4 w-4 mr-2" />} label="About" active={location.pathname === '/about'} />
             <NavItem to="/features" icon={<Zap className="h-4 w-4 mr-2" />} label="Features" active={location.pathname === '/features'} />
             
-            {isLoggedIn ? (
+            {isAuthenticated ? (
               <>
                 <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4 mr-2" />} label="Messages" active={location.pathname.includes('/chat')} />
                 <NavItem to="/groups" icon={<Users className="h-4 w-4 mr-2" />} label="Groups" active={location.pathname === '/groups'} />

@@ -86,39 +86,8 @@ const SignUp = () => {
   // UseEffect hook to handle Google sign-in result
   // Remove the useEffect with getRedirectResult and replace it with this:
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-        if (userDoc.exists()) {
-          // User already exists
-          toast({
-            title: 'Welcome back!',
-            description: 'You are now signed in.',
-          });
-          navigate('/chat', { replace: true });
-        } else {
-          // New user
-          await setDoc(doc(db, 'users', user.uid), {
-            id: user.uid,
-            name: user.displayName || '',
-            email: user.email || '',
-            createdAt: new Date(),
-            lastActive: new Date(),
-          });
-
-          toast({
-            title: 'Welcome!',
-            description: 'Your account has been created.',
-          });
-          navigate('/profile-completion', { replace: true });
-        }
-      }
-    });
-
-    return () => unsubscribe(); // Cleanup subscription
-  }, [navigate]);
+  // Auth state is now handled by AuthContext and ProtectedRoute
+  // User creation logic moved to handleGoogleSignUp
 
   // Update the handleGoogleSignUp function:
   const handleGoogleSignUp = async () => {

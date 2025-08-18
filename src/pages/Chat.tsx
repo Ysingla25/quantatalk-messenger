@@ -8,25 +8,24 @@ import { cn } from '@/lib/utils';
 import { Users, MessageSquare, LogOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
-import { User } from 'firebase/auth';
 import { useGoogleLogin } from '@react-oauth/google';
-import { DialogHeader } from '@/components/ui/dialog';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { saveContactsToFirestore, getUserContacts } from '../services/saveContactsToFirestore';
 import { Contact } from '@/types/contacts';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ChatType = 'direct' | 'group';
 
 const Chat = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<ChatType>('direct');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isContactImportOpen, setIsContactImportOpen] = useState(false);
   const [importedContacts, setImportedContacts] = useState<any[]>([]);
@@ -57,25 +56,10 @@ const Chat = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          setCurrentUser(user);
-          setLoading(false);
-          setError(null);
-          fetchUserContacts(); // Fetch user contacts
-        } catch (err) {
-          setError('Failed to load user data');
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-        navigate('/sign-in');
-      }
-    });
-
-    return () => unsubscribe();
-  }, [navigate]);
+    if (currentUser) {
+      fetchUserContacts();
+    }
+  }, [currentUser]);
 
   const handleLogout = async () => {
     try {
@@ -84,6 +68,7 @@ const Chat = () => {
         title: "Logged out",
         description: "You have been successfully logged out",
       });
+      navigate('/');
     } catch (error) {
       toast({
         title: "Error",

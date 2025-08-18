@@ -11,15 +11,7 @@ const SignIn = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && window.location.pathname !== '/chat') {
-        navigate('/chat', { replace: true });
-      }
-    });
-
-    return () => unsubscribe();
-  }, [navigate]);
+  // Auth state is now handled by AuthContext and ProtectedRoute
 
   const handleLoginSuccess = () => setIsLoading(true);
 

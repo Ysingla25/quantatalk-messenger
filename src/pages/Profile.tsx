@@ -8,70 +8,76 @@ import { toast } from '@/components/ui/use-toast';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { useNavigate } from 'react-router-dom';
 import { User, Key, LogOut, Upload, Shield } from 'lucide-react';
-
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string | null;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { auth, db } from '@/firebaseConfig';
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const Profile = () => {
-  const [user, setUser] = useState<UserData | null>(null);
+  const { user: currentUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem('quantatalk-user');
-    if (!userData) {
-      navigate('/sign-in');
-      return;
+    if (currentUser) {
+      setName(currentUser.displayName || '');
+      setEmail(currentUser.email || '');
     }
-    
-    const parsedUser = JSON.parse(userData) as UserData;
-    setUser(parsedUser);
-    setName(parsedUser.name);
-    setEmail(parsedUser.email);
-  }, [navigate]);
+  }, [currentUser]);
   
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
+    if (!currentUser) return;
+    
     setIsLoading(true);
     
-    setTimeout(() => {
-      if (user) {
-        const updatedUser = {
-          ...user,
-          name,
-          email
-        };
-        
-        localStorage.setItem('quantatalk-user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
-        
-        toast({
-          title: "Profile updated",
-          description: "Your profile information has been updated successfully."
-        });
-      }
-      
+    try {
+      // Update Firebase Auth profile
+      await updateProfile(currentUser, {
+        displayName: name
+      });
+
+      // Update Firestore user document
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        displayName: name,
+        lastActive: new Date()
+      });
+
+      toast({
+        title: "Profile updated",
+        description: "Your profile information has been updated successfully."
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('quantatalk-user');
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully."
-    });
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully."
+      });
+      navigate('/');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out",
+        variant: "destructive"
+      });
+    }
   };
   
-  if (!user) {
-    return null; // Redirect happens in useEffect
+  if (!currentUser) {
+    return null;
   }
 
   return (
@@ -85,9 +91,9 @@ const Profile = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
             <div className="glass-effect p-6 rounded-xl flex flex-col items-center">
-              <UserAvatar name={user.name} imageSrc={user.avatar} size="lg" className="mb-4" />
-              <h2 className="text-xl font-medium mb-1">{user.name}</h2>
-              <p className="text-sm text-muted-foreground mb-4">{user.email}</p>
+              <UserAvatar name={currentUser.displayName || 'User'} imageSrc={currentUser.photoURL} size="lg" className="mb-4" />
+              <h2 className="text-xl font-medium mb-1">{currentUser.displayName || 'User'}</h2>
+              <p className="text-sm text-muted-foreground mb-4">{currentUser.email}</p>
               
               <Button variant="outline" className="w-full mb-3" size="sm">
                 <Upload className="h-4 w-4 mr-2" />

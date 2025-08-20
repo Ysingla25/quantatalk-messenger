@@ -5,7 +5,7 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import DirectChat from '@/components/messages/DirectChat';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Users, MessageSquare, LogOut } from 'lucide-react';
+import { Users, MessageSquare, LogOut, UserPlus, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { signOut } from 'firebase/auth';
@@ -13,8 +13,12 @@ import { MessagingService } from '@/services/messagingService';
 import { useGoogleLogin } from '@react-oauth/google';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { saveContactsToFirestore, getUserContacts } from '../services/saveContactsToFirestore';
+import { deleteContact } from '../services/contactService';
 import { Contact } from '@/types/contacts';
 import { useAuth } from '@/contexts/AuthContext';
+import AddContactDialog from '@/components/AddContactDialog';
+import StartChatDialog from '@/components/StartChatDialog';
+import DeleteContactDialog from '@/components/DeleteContactDialog';
 
 type ChatType = 'direct' | 'group';
 
@@ -31,6 +35,11 @@ const Chat = () => {
   const [importedContacts, setImportedContacts] = useState<any[]>([]);
   const [userContacts, setUserContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [isStartChatOpen, setIsStartChatOpen] = useState(false);
+  const [isDeleteContactOpen, setIsDeleteContactOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState(false);
 
   const messagingService = MessagingService.getInstance();
 
@@ -148,6 +157,52 @@ const Chat = () => {
     }
   };
 
+  const handleContactAdded = (newContact: Contact) => {
+    setUserContacts(prev => [...prev, newContact]);
+  };
+
+  const handleStartChat = (contact: Contact) => {
+    setSelectedContact(contact);
+  };
+
+  const handleDeleteContact = async (contactId: string) => {
+    if (!currentUser) return;
+    
+    try {
+      setDeletingContact(true);
+      await deleteContact(currentUser.uid, contactId);
+      
+      // Remove the contact from the local state
+      setUserContacts(prev => prev.filter(contact => contact.id !== contactId));
+      
+      // If the deleted contact was selected, clear the selection
+      if (selectedContact?.id === contactId) {
+        setSelectedContact(null);
+      }
+      
+      toast({
+        title: "Contact deleted",
+        description: "Contact has been removed from your list.",
+      });
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete contact. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingContact(false);
+      setIsDeleteContactOpen(false);
+      setContactToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (contact: Contact) => {
+    setContactToDelete(contact);
+    setIsDeleteContactOpen(true);
+  };
+
   const renderContacts = () => {
     if (loading) {
       return (
@@ -163,16 +218,28 @@ const Chat = () => {
           <Users className="h-12 w-12 text-gray-400 mb-2" />
           <h3 className="text-lg font-medium">No contacts yet</h3>
           <p className="text-sm text-gray-500 mb-4">
-            Import your Google contacts to start chatting
+            Add contacts manually or import from Google
           </p>
-          <Button 
-            onClick={() => googleLogin()}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <Users className="h-4 w-4" />
-            Import Google Contacts
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setIsAddContactOpen(true)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add Contact
+            </Button>
+            <Button 
+              onClick={() => googleLogin()}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Import Google
+            </Button>
+          </div>
         </div>
       );
     }
@@ -182,25 +249,40 @@ const Chat = () => {
         {userContacts.map(contact => (
           <div 
             key={contact.id}
-            className={`flex items-center p-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors ${
+            className={`flex items-center p-3 hover:bg-gray-100 rounded-lg transition-colors ${
               selectedContact?.id === contact.id ? 'bg-blue-50' : ''
             }`}
-            onClick={() => setSelectedContact(contact)}
           >
-            <img
-              src={contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}`}
-              alt={contact.name}
-              className="w-10 h-10 rounded-full mr-3 object-cover"
-              onError={(e) => {
-                // Fallback to initials if image fails to load
-                const target = e.target as HTMLImageElement;
-                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}`;
-              }}
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-gray-900 truncate">{contact.name}</h3>
-              <p className="text-sm text-gray-500 truncate">{contact.email}</p>
+            <div 
+              className="flex items-center flex-1 cursor-pointer"
+              onClick={() => setSelectedContact(contact)}
+            >
+              <img
+                src={contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}`}
+                alt={contact.name}
+                className="w-10 h-10 rounded-full mr-3 object-cover"
+                onError={(e) => {
+                  // Fallback to initials if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}`;
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-gray-900 truncate">{contact.name}</h3>
+                <p className="text-sm text-gray-500 truncate">{contact.email}</p>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDeleteDialog(contact);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         ))}
       </div>
@@ -277,58 +359,33 @@ const Chat = () => {
         </Button>
       </div>
 
+      {/* Action Buttons */}
+      {activeTab === 'direct' && (
+        <div className="flex gap-2 p-3 border-b border-border">
+          <Button
+            onClick={() => setIsStartChatOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex-1"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            New Chat
+          </Button>
+          <Button
+            onClick={() => setIsAddContactOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex-1"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Button>
+        </div>
+      )}
+
       {/* Contacts List */}
       <div className="flex-1 overflow-y-auto">
-        {importedContacts.length > 0 ? (
-          importedContacts.map((contact, index) => {
-            // Extract contact information
-            const email = contact.emailAddresses?.[0]?.value || contact.email || 'No email';
-            const name = contact.names?.[0]?.displayName || 
-                         contact.name || 
-                         email.split('@')[0] || 
-                         `Contact ${index + 1}`;
-            const avatar = contact.photos?.[0]?.url || '';
-            
-            return (
-              <div
-                key={index}
-                className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
-              >
-                <div className="flex-shrink-0">
-                  <img
-                    src={avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`}
-                    alt={name}
-                    className="w-10 h-10 rounded-full"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`;
-                    }}
-                  />
-                </div>
-                <div className="ml-3 min-w-0">
-                  <h3 className="font-medium text-gray-900 truncate">{name}</h3>
-                  <p className="text-sm text-gray-600 truncate">{email}</p>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="flex flex-col items-center justify-center h-64 text-center p-4">
-            <Users className="h-12 w-12 text-gray-400 mb-2" />
-            <h3 className="text-lg font-medium">No contacts yet</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Import your Google contacts to start chatting
-            </p>
-            <Button 
-              onClick={() => googleLogin()}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Users className="h-4 w-4" />
-              Import Google Contacts
-            </Button>
-          </div>
-        )}
+        {renderContacts()}
       </div>
 
       {/* User Profile */}
@@ -457,6 +514,35 @@ const Chat = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Contact Dialog */}
+      <AddContactDialog
+        isOpen={isAddContactOpen}
+        onClose={() => setIsAddContactOpen(false)}
+        onContactAdded={handleContactAdded}
+        userId={currentUser.uid}
+      />
+
+      {/* Start Chat Dialog */}
+      <StartChatDialog
+        isOpen={isStartChatOpen}
+        onClose={() => setIsStartChatOpen(false)}
+        onStartChat={handleStartChat}
+        userId={currentUser.uid}
+        existingContacts={userContacts}
+      />
+
+      {/* Delete Contact Dialog */}
+      <DeleteContactDialog
+        isOpen={isDeleteContactOpen}
+        onClose={() => {
+          setIsDeleteContactOpen(false);
+          setContactToDelete(null);
+        }}
+        onConfirm={() => contactToDelete && handleDeleteContact(contactToDelete.id!)}
+        contactName={contactToDelete?.name || ''}
+        loading={deletingContact}
+      />
 
       <div className="h-[calc(100vh-64px)] flex">
         {/* Sidebar */}

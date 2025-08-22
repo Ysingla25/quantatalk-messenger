@@ -15,7 +15,7 @@ const Auth: React.FC = () => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         // Store user details in Firestore
-        await setDoc(doc(db, 'Users', user.uid), {
+        await setDoc(doc(db, 'users', user.uid), {
           email: email,
           createdAt: new Date(),
           lastLogin: new Date(),

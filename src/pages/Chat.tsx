@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AddContactDialog from '@/components/AddContactDialog';
 import StartChatDialog from '@/components/StartChatDialog';
 import DeleteContactDialog from '@/components/DeleteContactDialog';
+import { getUserByEmail } from '@/services/userService'; // Make sure this import exists
 
 type ChatType = 'direct' | 'group';
 
@@ -163,6 +164,7 @@ const Chat = () => {
 
   const handleStartChat = (contact: Contact) => {
     setSelectedContact(contact);
+    setIsStartChatOpen(false); // Close the dialog after starting chat
   };
 
   const handleDeleteContact = async (contactId: string) => {
@@ -201,6 +203,46 @@ const Chat = () => {
   const openDeleteDialog = (contact: Contact) => {
     setContactToDelete(contact);
     setIsDeleteContactOpen(true);
+  };
+
+  const handleContactClick = async (contact: Contact) => {
+    try {
+      // Validate user exists in system
+      const user = await getUserByEmail(contact.email);
+      if (!user) {
+        toast({
+          title: "User not found",
+          description: "This contact hasn't signed up yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (user.uid === currentUser.uid) {
+        toast({
+          title: "Cannot chat with yourself",
+          description: "Please choose another contact.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const resolvedContact: Contact = {
+        id: user.uid,
+        name: user.displayName || contact.name || contact.email.split('@')[0],
+        email: user.email || contact.email,
+        avatar: user.photoURL || contact.avatar || '',
+        userId: user.uid
+      };
+
+      setSelectedContact(resolvedContact);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to start chat. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const renderContacts = () => {
@@ -249,14 +291,12 @@ const Chat = () => {
         {userContacts.map(contact => (
           <div 
             key={contact.id}
-            className={`flex items-center p-3 hover:bg-gray-100 rounded-lg transition-colors ${
+            className={`flex items-center p-3 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer ${
               selectedContact?.id === contact.id ? 'bg-blue-50' : ''
             }`}
+            onClick={() => handleContactClick(contact)}
           >
-            <div 
-              className="flex items-center flex-1 cursor-pointer"
-              onClick={() => setSelectedContact(contact)}
-            >
+            <div className="flex items-center flex-1">
               <img
                 src={contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}`}
                 alt={contact.name}
@@ -457,9 +497,9 @@ const Chat = () => {
                   // Extract contact information
                   const email = contact.emailAddresses?.[0]?.value || contact.email || 'No email';
                   const name = contact.names?.[0]?.displayName || 
-                             contact.name || 
-                             email.split('@')[0] || 
-                             `Contact ${index + 1}`;
+                               contact.name || 
+                               email.split('@')[0] || 
+                               `Contact ${index + 1}`;
                   const avatar = contact.photos?.[0]?.url || '';
                   
                   return (

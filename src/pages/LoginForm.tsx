@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Add this import
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,7 @@ import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { FcGoogle } from 'react-icons/fc';
 
 interface LoginFormProps {
-  onSuccess: () => void;
+  onSuccess?: () => void; // Make optional
   isLoading?: boolean;
 }
 
@@ -18,11 +19,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
+  const navigate = useNavigate(); // Add this
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalLoading(true);
-    
+
     if (!email || !password) {
       toast({
         title: "Missing information",
@@ -34,12 +36,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: "Successfully authenticated",
         description: "Welcome to QuantaTalk!",
       });
-      onSuccess();
+      if (onSuccess) onSuccess();
+      navigate('/chat'); // Redirect to home or dashboard
     } catch (error: any) {
       let errorMessage = "Invalid credentials";
       if (error.code === 'auth/user-not-found') {
@@ -67,7 +70,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
         title: "Successfully authenticated",
         description: "Welcome to QuantaTalk!",
       });
-      onSuccess();
+      if (onSuccess) onSuccess();
+      navigate('/'); // Redirect to home or dashboard
     } catch (error) {
       toast({
         title: "Authentication failed",

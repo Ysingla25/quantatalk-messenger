@@ -6,10 +6,11 @@ import { auth } from '@/firebaseConfig';
 import { MessagingService, Message } from '@/services/messagingService';
 import { ChatService } from '@/services/chatService';
 import ChatHeader from './ChatHeader';
-import { users } from '@/data/users';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 
 interface DirectChatProps {
   userId: string;
@@ -27,6 +28,15 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    const fetchUser = async () => {
+      if (!userId) return;
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      setUser(userDoc.exists() ? userDoc.data() : null);
+    };
+    fetchUser();
+  }, [userId]);
+
+  useEffect(() => {
     const initializeChat = async () => {
       if (!currentUser) return;
       
@@ -37,10 +47,6 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
         
         // Subscribe to messages for this chat
         const unsubscribe = messagingService.subscribeToMessages(sessionId, setMessages);
-        
-        // Get user info from demo data (in real app, this would come from Firestore)
-        const getUser = users.find(u => u.id === userId);
-        setUser(getUser);
         
         return unsubscribe;
       } catch (error) {

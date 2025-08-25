@@ -11,6 +11,7 @@ import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { formatTimestamp } from '@/utils/dateUtils';
 
 interface DirectChatProps {
   userId: string;
@@ -23,9 +24,14 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [chatId, setChatId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [callOpen, setCallOpen] = useState(false);
+  const [callMode, setCallMode] = useState<'outgoing' | 'incoming' | 'active'>('outgoing');
+  const [mediaType, setMediaType] = useState<'audio' | 'video'>('audio');
+  const [callSession, setCallSession] = useState<any>(null);
+  
   const messagingService = MessagingService.getInstance();
   const chatService = ChatService.getInstance();
-  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -80,6 +86,42 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
     }
   };
 
+  const startCall = async (type: 'audio' | 'video') => {
+    try {
+      if (!currentUser) return;
+      const { CallService } = await import('@/services/callService');
+      const cs = CallService.getInstance();
+      const session = await cs.startCall(currentUser.uid, userId, type);
+      setCallSession(session);
+      setMediaType(type);
+      setCallMode('active');
+      setCallOpen(true);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to start call', variant: 'destructive' });
+    }
+  };
+
+  const endCall = async () => {
+    try { await callSession?.end?.(); } catch {}
+    setCallOpen(false);
+    setCallSession(null);
+  };
+
+  useEffect(() => {
+    if (!callOpen || !callSession) return;
+    if (mediaType === 'video') {
+      const rv = document.getElementById('remoteVideo') as HTMLVideoElement | null;
+      const lv = document.getElementById('localVideo') as HTMLVideoElement | null;
+      if (rv) { (rv as any).srcObject = callSession.remoteStream; rv.play?.().catch(() => {}); }
+      if (lv) { (lv as any).srcObject = callSession.localStream; lv.muted = true; lv.play?.().catch(() => {}); }
+    } else {
+      const ra = document.getElementById('remoteAudio') as HTMLAudioElement | null;
+      const la = document.getElementById('localAudio') as HTMLAudioElement | null;
+      if (ra) { (ra as any).srcObject = callSession.remoteStream; ra.play?.().catch(() => {}); }
+      if (la) { (la as any).srcObject = callSession.localStream; la.muted = true; la.play?.().catch(() => {}); }
+    }
+  }, [callOpen, callSession, mediaType]);
+
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
@@ -94,7 +136,37 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
         name={user.name} 
         avatar={user.avatar}
         online={user.status === 'online'} 
+        onVoiceCall={() => startCall('audio')}
+        onVideoCall={() => startCall('video')}
       />
+      
+      {/* Call dialog */}
+      {callOpen && (
+        <>
+          {/* Simple inline call dialog to avoid extra deps */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-4">
+              <h2 className="text-lg font-semibold mb-2">{mediaType === 'video' ? 'Video' : 'Voice'} Call</h2>
+              <div className="space-y-2">
+                {mediaType === 'video' ? (
+                  <>
+                    <video id="remoteVideo" className="w-full bg-black rounded" playsInline autoPlay />
+                    <video id="localVideo" className="w-40 h-28 bg-black rounded" playsInline autoPlay muted />
+                  </>
+                ) : (
+                  <>
+                    <audio id="remoteAudio" autoPlay />
+                    <audio id="localAudio" autoPlay muted />
+                  </>
+                )}
+              </div>
+              <div className="mt-4 flex gap-2 justify-end">
+                <Button variant="destructive" onClick={endCall}>End</Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -117,7 +189,7 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
                 message.senderId === auth.currentUser?.uid 
                   ? 'bg-primary/20 text-white' 
                   : 'bg-gray-100 text-gray-900'
-              }`}>
+              }`} title={formatTimestamp(message.timestamp)}>
                 <div className="flex justify-between items-start">
                   {message.senderId !== auth.currentUser?.uid && (
                     <p className="font-medium text-sm text-gray-900">{message.senderName}</p>

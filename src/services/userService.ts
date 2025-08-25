@@ -8,6 +8,7 @@ export interface UserProfile {
   photoURL: string | null;
   createdAt?: any;
   lastSeen?: any;
+  isOnline?: boolean;
 }
 
 // Get user by email
@@ -30,7 +31,8 @@ export const getUserByEmail = async (email: string): Promise<UserProfile | null>
       displayName: userData.displayName,
       photoURL: userData.photoURL,
       createdAt: userData.createdAt,
-      lastSeen: userData.lastSeen
+      lastSeen: userData.lastSeen,
+      isOnline: userData.isOnline || false
     };
   } catch (error) {
     console.error('Error getting user by email:', error);
@@ -56,7 +58,8 @@ export const getUserByUid = async (uid: string): Promise<UserProfile | null> => 
       displayName: userData.displayName,
       photoURL: userData.photoURL,
       createdAt: userData.createdAt,
-      lastSeen: userData.lastSeen
+      lastSeen: userData.lastSeen,
+      isOnline: userData.isOnline || false
     };
   } catch (error) {
     console.error('Error getting user by UID:', error);
@@ -85,7 +88,8 @@ export const searchUsers = async (searchTerm: string): Promise<UserProfile[]> =>
         displayName: userData.displayName,
         photoURL: userData.photoURL,
         createdAt: userData.createdAt,
-        lastSeen: userData.lastSeen
+        lastSeen: userData.lastSeen,
+        isOnline: userData.isOnline || false
       });
     });
     

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import UserAvatar from '../ui/UserAvatar';
 import { format } from 'date-fns';
 import { Shield } from 'lucide-react';
+import { formatTimestamp } from '@/utils/dateUtils';
 
 export interface Message {
   id: string;
@@ -91,6 +92,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId, clas
                       ? "bg-primary text-white rounded-tr-none" 
                       : "bg-secondary rounded-tl-none"
                   )}
+                  title={formatTimestamp(message.timestamp)}
                 >
                   {!isCurrentUser && showAvatar && (
                     <div className="text-xs font-medium mb-1 text-accent">

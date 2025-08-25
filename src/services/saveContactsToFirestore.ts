@@ -1,7 +1,8 @@
 // src/services/saveContactsToFirestore.ts
 import { auth, db } from '@/firebaseConfig';
-import { collection, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, writeBatch, doc, serverTimestamp, query, where, documentId } from 'firebase/firestore';
 import { Contact } from '@/types/contacts';
+import { getUserByEmail } from './userService';
 
 // Save contacts to Firestore under the user's contacts subcollection
 export const saveContactsToFirestore = async (userId: string, contacts: any[]): Promise<number> => {
@@ -53,10 +54,33 @@ export const getUserContacts = async (userId: string): Promise<Contact[]> => {
     const contactsRef = collection(db, `users/${userId}/contacts`);
     const snapshot = await getDocs(contactsRef);
     
-    return snapshot.docs.map(doc => ({
+    const contacts = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Contact[];
+
+    // Get online status for each contact
+    const contactsWithStatus = await Promise.all(
+      contacts.map(async (contact) => {
+        try {
+          // Get the user data to check online status
+          const user = await getUserByEmail(contact.email);
+          return {
+            ...contact,
+            isOnline: user?.isOnline || false,
+            userId: user?.uid || contact.userId
+          };
+        } catch (error) {
+          console.error(`Error getting status for contact ${contact.email}:`, error);
+          return {
+            ...contact,
+            isOnline: false
+          };
+        }
+      })
+    );
+
+    return contactsWithStatus;
   } catch (error) {
     console.error('Error getting contacts:', error);
     throw new Error('Failed to load contacts');

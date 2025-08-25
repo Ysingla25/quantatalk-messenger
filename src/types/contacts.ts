@@ -1,8 +1,8 @@
 export interface Contact {
-  id?: string;  // Optional because new contacts might not have an ID yet
+  id: string;
   name: string;
   email: string;
-  avatar: string;
-  userId: string;
-  createdAt?: any;
+  avatar?: string;
+  userId?: string;
+  isOnline?: boolean; // <-- Add this property
 }

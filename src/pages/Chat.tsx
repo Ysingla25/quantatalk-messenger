@@ -3,23 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import UserAvatar from '@/components/ui/UserAvatar';
 import DirectChat from '@/components/messages/DirectChat';
+import GroupChat from '@/components/messages/GroupChat';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Users, MessageSquare, LogOut, UserPlus, Trash2 } from 'lucide-react';
+import { Users, MessageSquare, LogOut, UserPlus, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { MessagingService } from '@/services/messagingService';
+import { GroupService } from '@/services/groupService';
 import { useGoogleLogin } from '@react-oauth/google';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { saveContactsToFirestore, getUserContacts } from '../services/saveContactsToFirestore';
 import { deleteContact } from '../services/contactService';
 import { Contact } from '@/types/contacts';
+import { Group } from '@/types/groups';
 import { useAuth } from '@/contexts/AuthContext';
 import AddContactDialog from '@/components/AddContactDialog';
 import StartChatDialog from '@/components/StartChatDialog';
 import DeleteContactDialog from '@/components/DeleteContactDialog';
+import CreateGroupDialog from '@/components/CreateGroupDialog';
+import GroupMembersDialog from '@/components/GroupMembersDialog';
 import { getUserByEmail } from '@/services/userService'; // Make sure this import exists
+import { formatTimestamp, formatChatListTime } from '@/utils/dateUtils';
+import { PresenceService, setUserStatus } from '@/services/presenceService';
+import { usePresence } from '@/hooks/usePresence';
+import { CallService, CallMediaType } from '@/services/callService';
+import CallDialog from '@/components/CallDialog';
 
 type ChatType = 'direct' | 'group';
 
@@ -27,10 +37,11 @@ const Chat = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  
+  // Initialize presence management
+  usePresence(currentUser?.uid || null);
   const [activeTab, setActiveTab] = useState<ChatType>('direct');
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isContactImportOpen, setIsContactImportOpen] = useState(false);
   const [importedContacts, setImportedContacts] = useState<any[]>([]);
@@ -41,8 +52,22 @@ const Chat = () => {
   const [isDeleteContactOpen, setIsDeleteContactOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const [deletingContact, setDeletingContact] = useState(false);
+  
+  // Group-related state
+  const [userGroups, setUserGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isGroupMembersOpen, setIsGroupMembersOpen] = useState(false);
+  const [groupsLoading, setGroupsLoading] = useState(false);
 
   const messagingService = MessagingService.getInstance();
+  const groupService = GroupService.getInstance();
+  const callService = CallService.getInstance();
+
+  // Incoming call handling
+  const [incomingCall, setIncomingCall] = useState<{ id: string; callerId: string; mediaType: CallMediaType } | null>(null);
+  const [activeCall, setActiveCall] = useState<null | import('@/services/callService').CallSession>(null);
+  const [callDialogOpen, setCallDialogOpen] = useState(false);
 
   const fetchUserContacts = async () => {
     if (!currentUser) return;
@@ -65,11 +90,60 @@ const Chat = () => {
     }
   };
 
+  const fetchUserGroups = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setGroupsLoading(true);
+      const groups = await groupService.getUserGroups(currentUser.uid);
+      setUserGroups(groups);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load groups. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (currentUser) {
       fetchUserContacts();
+      fetchUserGroups();
+
+      // Subscribe for incoming calls
+      const unsub = callService.listenForIncomingCalls(currentUser.uid, (call) => {
+        setIncomingCall(call);
+        setCallDialogOpen(true);
+      });
+      return () => unsub();
     }
   }, [currentUser]);
+
+  // Group-related handlers
+  const handleGroupCreated = (newGroup: Group) => {
+    setUserGroups(prev => [newGroup, ...prev]);
+    setSelectedGroup(newGroup);
+    setSelectedContact(null); // Clear direct chat selection
+    setActiveTab('group');
+  };
+
+  const handleGroupClick = (group: Group) => {
+    setSelectedGroup(group);
+    setSelectedContact(null); // Clear direct chat selection
+  };
+
+  const handleGroupUpdated = (updatedGroup: Group) => {
+    setUserGroups(prev => prev.map(group => 
+      group.id === updatedGroup.id ? updatedGroup : group
+    ));
+    if (selectedGroup?.id === updatedGroup.id) {
+      setSelectedGroup(updatedGroup);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -310,6 +384,9 @@ const Chat = () => {
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-gray-900 truncate">{contact.name}</h3>
                 <p className="text-sm text-gray-500 truncate">{contact.email}</p>
+                <span className={`text-xs font-semibold ${contact.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                  {contact.isOnline ? 'Online' : 'Offline'}
+                </span>
               </div>
             </div>
             <Button
@@ -322,6 +399,90 @@ const Chat = () => {
               }}
             >
               <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderGroups = () => {
+    if (groupsLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      );
+    }
+
+    if (userGroups.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-center p-4">
+          <Users className="h-12 w-12 text-gray-400 mb-2" />
+          <h3 className="text-lg font-medium">No groups yet</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Create a group to start chatting with multiple people
+          </p>
+          <Button 
+            onClick={() => setIsCreateGroupOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+            disabled={userContacts.length === 0}
+          >
+            <Plus className="h-4 w-4" />
+            Create Group
+          </Button>
+          {userContacts.length === 0 && (
+            <p className="text-xs text-gray-400 mt-2">
+              Add contacts first to create groups
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {userGroups.map(group => (
+          <div 
+            key={group.id}
+            className={`flex items-center p-3 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer relative ${
+              selectedGroup?.id === group.id ? 'bg-blue-50' : ''
+            }`}
+            onClick={() => handleGroupClick(group)}
+            title={`Created: ${formatTimestamp(group.createdAt)}\nLast updated: ${formatTimestamp(group.updatedAt)}`}
+          >
+            <div className="flex items-center flex-1">
+              <div className="w-10 h-10 rounded-full mr-3 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                {group.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-gray-900 truncate">{group.name}</h3>
+                  <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                    {formatChatListTime(group.updatedAt)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 truncate">
+                  {group.members.length} member{group.members.length !== 1 ? 's' : ''}
+                </p>
+                {group.description && (
+                  <p className="text-xs text-gray-400 truncate">{group.description}</p>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-gray-400 hover:text-blue-500 hover:bg-blue-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedGroup(group);
+                setIsGroupMembersOpen(true);
+              }}
+            >
+              <Users className="h-4 w-4" />
             </Button>
           </div>
         ))}
@@ -423,9 +584,24 @@ const Chat = () => {
         </div>
       )}
 
-      {/* Contacts List */}
+      {activeTab === 'group' && (
+        <div className="flex gap-2 p-3 border-b border-border">
+          <Button
+            onClick={() => setIsCreateGroupOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            disabled={userContacts.length === 0}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Group
+          </Button>
+        </div>
+      )}
+
+      {/* Contacts/Groups List */}
       <div className="flex-1 overflow-y-auto">
-        {renderContacts()}
+        {activeTab === 'direct' ? renderContacts() : renderGroups()}
       </div>
 
       {/* User Profile */}
@@ -452,6 +628,16 @@ const Chat = () => {
       </div>
     </aside>
   );
+
+  useEffect(() => {
+    const handleUnload = () => {
+      if (currentUser?.uid) {
+        setUserStatus(currentUser.uid, 'offline');
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [currentUser]);
 
   if (loading) {
     return (
@@ -584,6 +770,22 @@ const Chat = () => {
         loading={deletingContact}
       />
 
+      {/* Create Group Dialog */}
+      <CreateGroupDialog
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        onGroupCreated={handleGroupCreated}
+        contacts={userContacts}
+      />
+
+      {/* Group Members Dialog */}
+      <GroupMembersDialog
+        isOpen={isGroupMembersOpen}
+        onClose={() => setIsGroupMembersOpen(false)}
+        group={selectedGroup}
+        onGroupUpdated={handleGroupUpdated}
+      />
+
       <div className="h-[calc(100vh-64px)] flex">
         {/* Sidebar */}
         {renderSidebar()}
@@ -592,15 +794,26 @@ const Chat = () => {
         <div className="hidden sm:block flex-1 h-full">
           {selectedContact ? (
             <DirectChat userId={selectedContact.id} />
+          ) : selectedGroup ? (
+            <GroupChat groupId={selectedGroup.id} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="text-center p-4 max-w-md">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <MessageSquare className="h-8 w-8 text-primary" />
+                  {activeTab === 'direct' ? (
+                    <MessageSquare className="h-8 w-8 text-primary" />
+                  ) : (
+                    <Users className="h-8 w-8 text-primary" />
+                  )}
                 </div>
-                <h2 className="text-xl font-bold mb-2">Select a conversation</h2>
+                <h2 className="text-xl font-bold mb-2">
+                  {activeTab === 'direct' ? 'Select a conversation' : 'Select a group'}
+                </h2>
                 <p className="text-muted-foreground">
-                  Choose a contact or group from the list to start messaging
+                  {activeTab === 'direct' 
+                    ? 'Choose a contact from the list to start messaging'
+                    : 'Choose a group from the list to start group messaging'
+                  }
                 </p>
               </div>
             </div>
@@ -612,3 +825,8 @@ const Chat = () => {
 };
 
 export default Chat;
+
+
+
+
+

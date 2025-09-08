@@ -7,11 +7,12 @@ import { MessagingService, Message } from '@/services/messagingService';
 import { ChatService } from '@/services/chatService';
 import ChatHeader from './ChatHeader';
 import { cn } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { formatTimestamp } from '@/utils/dateUtils';
+import CallDialog from '@/components/CallDialog';
 
 interface DirectChatProps {
   userId: string;
@@ -25,6 +26,7 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
   const [newMessage, setNewMessage] = useState('');
   const [chatId, setChatId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(false);
   const [callOpen, setCallOpen] = useState(false);
   const [callMode, setCallMode] = useState<'outgoing' | 'incoming' | 'active'>('outgoing');
   const [mediaType, setMediaType] = useState<'audio' | 'video'>('audio');
@@ -36,24 +38,37 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
   useEffect(() => {
     const fetchUser = async () => {
       if (!userId) return;
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      setUser(userDoc.exists() ? userDoc.data() : null);
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      const data = userDoc.exists() ? userDoc.data() : null;
+      setUser(data);
     };
     fetchUser();
+  }, [userId]);
+
+  // Presence subscription for header status
+  useEffect(() => {
+    if (!userId) return;
+    const userRef = doc(db, 'users', userId);
+    const unsub = onSnapshot(userRef, (snap) => {
+      const d = snap.data() as any;
+      setIsOnline(!!d?.isOnline);
+    });
+    return () => unsub();
   }, [userId]);
 
   useEffect(() => {
     const initializeChat = async () => {
       if (!currentUser) return;
-      
+
       try {
         // Get or create chat session
         const sessionId = await chatService.getOrCreateDirectChat(currentUser.uid, userId);
         setChatId(sessionId);
-        
+
         // Subscribe to messages for this chat
         const unsubscribe = messagingService.subscribeToMessages(sessionId, setMessages);
-        
+
         return unsubscribe;
       } catch (error) {
         console.error('Error initializing chat:', error);
@@ -70,6 +85,8 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
       unsubscribe.then(unsub => unsub && unsub());
     };
   }, [userId, currentUser]);
+
+
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !chatId) return;
@@ -107,20 +124,18 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
     setCallSession(null);
   };
 
+  // Auto-close when remote ends/rejects
   useEffect(() => {
-    if (!callOpen || !callSession) return;
-    if (mediaType === 'video') {
-      const rv = document.getElementById('remoteVideo') as HTMLVideoElement | null;
-      const lv = document.getElementById('localVideo') as HTMLVideoElement | null;
-      if (rv) { (rv as any).srcObject = callSession.remoteStream; rv.play?.().catch(() => {}); }
-      if (lv) { (lv as any).srcObject = callSession.localStream; lv.muted = true; lv.play?.().catch(() => {}); }
-    } else {
-      const ra = document.getElementById('remoteAudio') as HTMLAudioElement | null;
-      const la = document.getElementById('localAudio') as HTMLAudioElement | null;
-      if (ra) { (ra as any).srcObject = callSession.remoteStream; ra.play?.().catch(() => {}); }
-      if (la) { (la as any).srcObject = callSession.localStream; la.muted = true; la.play?.().catch(() => {}); }
-    }
-  }, [callOpen, callSession, mediaType]);
+    if (!callSession?.callId) return;
+    const callRef = doc(db, 'calls', callSession.callId);
+    const unsub = onSnapshot(callRef, (snap) => {
+      const d: any = snap.data();
+      if (d?.status === 'ended' || d?.status === 'rejected') {
+        endCall();
+      }
+    });
+    return () => unsub();
+  }, [callSession?.callId]);
 
   if (!user) {
     return (
@@ -135,37 +150,21 @@ const DirectChat: React.FC<DirectChatProps> = ({ userId, className }) => {
       <ChatHeader 
         name={user.name} 
         avatar={user.avatar}
-        online={user.status === 'online'} 
+        online={isOnline}
         onVoiceCall={() => startCall('audio')}
         onVideoCall={() => startCall('video')}
       />
       
       {/* Call dialog */}
-      {callOpen && (
-        <>
-          {/* Simple inline call dialog to avoid extra deps */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-4">
-              <h2 className="text-lg font-semibold mb-2">{mediaType === 'video' ? 'Video' : 'Voice'} Call</h2>
-              <div className="space-y-2">
-                {mediaType === 'video' ? (
-                  <>
-                    <video id="remoteVideo" className="w-full bg-black rounded" playsInline autoPlay />
-                    <video id="localVideo" className="w-40 h-28 bg-black rounded" playsInline autoPlay muted />
-                  </>
-                ) : (
-                  <>
-                    <audio id="remoteAudio" autoPlay />
-                    <audio id="localAudio" autoPlay muted />
-                  </>
-                )}
-              </div>
-              <div className="mt-4 flex gap-2 justify-end">
-                <Button variant="destructive" onClick={endCall}>End</Button>
-              </div>
-            </div>
-          </div>
-        </>
+      {callOpen && callSession && (
+        <CallDialog
+          isOpen={callOpen}
+          onClose={endCall}
+          session={callSession}
+          mode={callMode}
+          mediaType={mediaType}
+          callerName={user?.name}
+        />
       )}
       
       {/* Messages container */}

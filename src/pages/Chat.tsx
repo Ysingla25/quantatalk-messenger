@@ -68,6 +68,7 @@ const Chat = () => {
   const [incomingCall, setIncomingCall] = useState<{ id: string; callerId: string; mediaType: CallMediaType } | null>(null);
   const [activeCall, setActiveCall] = useState<null | import('@/services/callService').CallSession>(null);
   const [callDialogOpen, setCallDialogOpen] = useState(false);
+  const [callerName, setCallerName] = useState<string>('');
 
   const fetchUserContacts = async () => {
     if (!currentUser) return;
@@ -89,6 +90,35 @@ const Chat = () => {
       setLoading(false);
     }
   };
+
+  // Build stable key for presence subscriptions
+  const contactsPresenceKey = Array.from(new Set(userContacts.map(c => c.userId || '')))
+    .filter(Boolean)
+    .sort()
+    .join(',');
+
+  // Live presence subscription for contacts (stable)
+  useEffect(() => {
+    if (!currentUser) return;
+    const ids = contactsPresenceKey ? contactsPresenceKey.split(',') : [];
+    if (ids.length === 0) return;
+
+    const presence = PresenceService.getInstance();
+    console.debug('[presence] subscribe', ids);
+    const unsub = presence.subscribeToMultipleUsersPresence(ids, (presenceMap) => {
+      console.debug('[presence] update', Object.fromEntries(presenceMap));
+      setUserContacts(prev => prev.map(c => ({
+        ...c,
+        isOnline: presenceMap.get(c.userId || '') || false,
+      })));
+    });
+
+    return () => {
+      console.debug('[presence] unsubscribe');
+      unsub();
+    };
+  }, [currentUser?.uid, contactsPresenceKey]);
+
 
   const fetchUserGroups = async () => {
     if (!currentUser) return;
@@ -115,13 +145,20 @@ const Chat = () => {
       fetchUserGroups();
 
       // Subscribe for incoming calls
-      const unsub = callService.listenForIncomingCalls(currentUser.uid, (call) => {
+      const unsub = callService.listenForIncomingCalls(currentUser.uid, async (call) => {
+        // Get caller information
+        const callerContact = userContacts.find(contact => contact.id === call.callerId);
+        if (callerContact) {
+          setCallerName(callerContact.name);
+        } else {
+          setCallerName('Unknown Caller');
+        }
         setIncomingCall(call);
         setCallDialogOpen(true);
       });
       return () => unsub();
     }
-  }, [currentUser]);
+  }, [currentUser]); // Removed userContacts from dependencies to prevent infinite loop
 
   // Group-related handlers
   const handleGroupCreated = (newGroup: Group) => {
@@ -142,6 +179,13 @@ const Chat = () => {
     ));
     if (selectedGroup?.id === updatedGroup.id) {
       setSelectedGroup(updatedGroup);
+    }
+  };
+
+  const handleGroupDeleted = (groupId: string) => {
+    setUserGroups(prev => prev.filter(group => group.id !== groupId));
+    if (selectedGroup?.id === groupId) {
+      setSelectedGroup(null);
     }
   };
 
@@ -650,6 +694,7 @@ const Chat = () => {
     );
   }
 
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -784,7 +829,81 @@ const Chat = () => {
         onClose={() => setIsGroupMembersOpen(false)}
         group={selectedGroup}
         onGroupUpdated={handleGroupUpdated}
+        onGroupDeleted={handleGroupDeleted}
       />
+
+      {/* Incoming Call Dialog */}
+      {incomingCall && callDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Incoming {incomingCall.mediaType} call</h2>
+              <p className="text-muted-foreground mb-6">{callerName}</p>
+              <div className="flex gap-4 justify-center">
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  onClick={() => {
+                    callService.rejectCall(incomingCall.id);
+                    setCallDialogOpen(false);
+                    setIncomingCall(null);
+                    setCallerName('');
+                  }}
+                  className="flex-1"
+                >
+                  Reject
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={async () => {
+                    try {
+                      const callSession = await callService.answerCall(incomingCall.id, incomingCall.mediaType);
+                      setActiveCall(callSession);
+                      setCallDialogOpen(false);
+                      setIncomingCall(null);
+                      setCallerName('');
+                      toast({
+                        title: "Call connected",
+                        description: `Connected to ${callerName}`,
+                      });
+                    } catch (error) {
+                      console.error('Error answering call:', error);
+                      toast({
+                        title: "Call failed",
+                        description: "Failed to answer the call",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  Accept
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Call Dialog */}
+      {activeCall && (
+        <CallDialog
+          isOpen={true}
+          onClose={async () => {
+            await activeCall.end();
+            setActiveCall(null);
+          }}
+          session={activeCall}
+          mode="active"
+          mediaType={incomingCall?.mediaType || 'audio'}
+          callerName={callerName}
+        />
+      )}
 
       <div className="h-[calc(100vh-64px)] flex">
         {/* Sidebar */}
@@ -825,8 +944,3 @@ const Chat = () => {
 };
 
 export default Chat;
-
-
-
-
-

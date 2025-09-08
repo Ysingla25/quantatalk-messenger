@@ -24,14 +24,26 @@ const CallDialog: React.FC<CallDialogProps> = ({ isOpen, onClose, session, mode,
     const remoteEl = remoteRef.current as any;
 
     if (localEl) {
+      localEl.autoplay = true;
       localEl.srcObject = session.localStream;
       localEl.muted = true; // don't echo
-      localEl.play().catch(() => {});
+      const playLocal = () => localEl.play().catch(() => {});
+      if ('onloadedmetadata' in localEl) {
+        // @ts-ignore
+        localEl.onloadedmetadata = playLocal;
+      }
+      playLocal();
     }
 
     if (remoteEl) {
+      remoteEl.autoplay = true;
       remoteEl.srcObject = session.remoteStream;
-      remoteEl.play().catch(() => {});
+      const playRemote = () => remoteEl.play().catch(() => {});
+      if ('onloadedmetadata' in remoteEl) {
+        // @ts-ignore
+        remoteEl.onloadedmetadata = playRemote;
+      }
+      playRemote();
     }
   }, [session]);
 
@@ -82,6 +94,13 @@ const CallDialog: React.FC<CallDialogProps> = ({ isOpen, onClose, session, mode,
           )}
           <Button variant="destructive" onClick={onClose}>End</Button>
         </div>
+
+        {/* Optional ringtone for incoming calls */}
+        {mode === 'incoming' && (
+          <audio autoPlay loop>
+            <source src="/ringtone.mp3" type="audio/mpeg" />
+          </audio>
+        )}
       </div>
     </div>
   );

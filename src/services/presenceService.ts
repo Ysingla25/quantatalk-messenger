@@ -5,6 +5,7 @@ export class PresenceService {
   private static instance: PresenceService;
   private presenceListeners: Map<string, () => void> = new Map();
   private lastStatus: Map<string, 'online' | 'offline'> = new Map();
+  private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   private constructor() {}
 
@@ -18,11 +19,11 @@ export class PresenceService {
   // Set user online status
   async setUserOnline(userId: string): Promise<void> {
     try {
-      if (this.lastStatus.get(userId) === 'online') return;
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         isOnline: true,
-        lastSeen: serverTimestamp()
+        lastSeen: serverTimestamp(),
+        lastActivity: serverTimestamp()
       });
       this.lastStatus.set(userId, 'online');
     } catch (error) {
@@ -33,7 +34,6 @@ export class PresenceService {
   // Set user offline status
   async setUserOffline(userId: string): Promise<void> {
     try {
-      if (this.lastStatus.get(userId) === 'offline') return;
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         isOnline: false,
@@ -135,30 +135,21 @@ export class PresenceService {
       this.setUserOffline(userId);
     };
 
-    // Set up visibility change listener with lock to prevent thrashing
-    const handleVisibilityChange = () => {
-      if (visibilityLocked) return;
-      visibilityLocked = true;
-      Promise.resolve().then(async () => {
-        try {
-          if (document.hidden) {
-            await this.setUserOffline(userId);
-          } else {
-            await this.setUserOnline(userId);
-          }
-        } finally {
-          visibilityLocked = false;
-        }
-      });
-    };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Start heartbeat to keep lastActivity fresh
+    const HEARTBEAT_INTERVAL_MS = 15000;
+    const userRef = doc(db, 'users', userId);
+    const interval = setInterval(async () => {
+      try {
+        await updateDoc(userRef, { lastActivity: serverTimestamp() });
+      } catch {}
+    }, HEARTBEAT_INTERVAL_MS);
 
     // Return cleanup function
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
       this.setUserOffline(userId);
     };
   }

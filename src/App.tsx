@@ -16,6 +16,7 @@ import ErrorBoundary from './ErrorBoundary';
 import ProfileCompletion from "./pages/ProfileCompletion";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
+import GlobalIncomingCall from "./components/messages/GlobalIncomingCall";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,8 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        {/* Global incoming call banner + dialog mounted at app root */}
+        <GlobalIncomingCall />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ErrorBoundary>
             <Routes>

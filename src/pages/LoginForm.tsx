@@ -71,7 +71,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, isLoading = false }) =
         description: "Welcome to QuantaTalk!",
       });
       if (onSuccess) onSuccess();
-      navigate('/'); // Redirect to home or dashboard
+      navigate('/chat'); // Redirect to chat page
     } catch (error) {
       toast({
         title: "Authentication failed",

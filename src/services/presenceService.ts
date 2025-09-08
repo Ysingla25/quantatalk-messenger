@@ -33,17 +33,23 @@ export class PresenceService {
 
   // Set user offline status
   async setUserOffline(userId: string): Promise<void> {
+  // Skip if no userId is provided
+    if (!userId) {
+      console.log('No user ID provided, skipping offline status update');
+      return;
+    }
+  
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         isOnline: false,
         lastSeen: serverTimestamp()
       });
-      this.lastStatus.set(userId, 'offline');
     } catch (error) {
       console.error('Error setting user offline:', error);
     }
   }
+
 
   // Listen to user's online status
   subscribeToUserPresence(userId: string, callback: (isOnline: boolean) => void): () => void {

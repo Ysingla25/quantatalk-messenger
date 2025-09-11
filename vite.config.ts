@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => ({
       "Access-Control-Allow-Origin": process.env.VITE_CORS_ORIGIN || "http://localhost:8080",
       "Access-Control-Allow-Methods": process.env.VITE_CORS_METHODS || "GET,POST,PUT,DELETE,OPTIONS",
       "Access-Control-Allow-Headers": process.env.VITE_CORS_HEADERS || "Content-Type,Authorization",
+      "Cross-Origin-Opener-Policy": "unsafe-none",
     },
     proxy: {
       "/api": {

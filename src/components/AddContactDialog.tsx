@@ -7,6 +7,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { UserPlus, Loader2 } from 'lucide-react';
 import { Contact } from '@/types/contacts';
 import { addContactToFirestore } from '@/services/contactService';
+import { getGoogleContacts } from '@/services/googleContacts';
+import { auth, googleProvider } from '@/firebaseConfig';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface AddContactDialogProps {
   isOpen: boolean;
@@ -23,6 +26,8 @@ export default function AddContactDialog({
 }: AddContactDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [googleContacts, setGoogleContacts] = useState<{ name: string; email: string }[] | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -86,6 +91,7 @@ export default function AddContactDialog({
 
   const handleClose = () => {
     setFormData({ name: '', email: '', avatar: '' });
+    setGoogleContacts(null);
     onClose();
   };
 
@@ -96,6 +102,51 @@ export default function AddContactDialog({
       ...prev,
       [field]: e.target.value
     }));
+  };
+
+  const handleImportFromGoogle = async () => {
+    try {
+      setImportLoading(true);
+
+      // Trigger Google consent to ensure we have a fresh access token with contacts scope
+      const result = await signInWithPopup(auth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const accessToken = credential?.accessToken;
+
+      if (!accessToken) {
+        throw new Error('Missing Google access token.');
+      }
+
+      const contacts = await getGoogleContacts(accessToken);
+
+      if (!contacts || contacts.length === 0) {
+        toast({
+          title: 'No contacts found',
+          description: 'Your Google account has no available contacts to import.',
+        });
+        setGoogleContacts([]);
+        return;
+      }
+
+      setGoogleContacts(contacts);
+      toast({
+        title: 'Contacts loaded',
+        description: 'Select a contact below to fill the form.',
+      });
+    } catch (err: any) {
+      console.error('Google contacts import error:', err);
+      toast({
+        title: 'Google Import Failed',
+        description: err?.message || 'Unable to import contacts from Google.',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handlePickContact = (c: { name: string; email: string }) => {
+    setFormData(prev => ({ ...prev, name: c.name || prev.name, email: c.email || prev.email }));
   };
 
   return (
@@ -111,7 +162,40 @@ export default function AddContactDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">You can fill manually or import from Google.</span>
+          <Button type="button" variant="secondary" onClick={handleImportFromGoogle} disabled={importLoading || loading}>
+            {importLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading
+              </>
+            ) : (
+              'Import from Google'
+            )}
+          </Button>
+        </div>
+
+        {googleContacts && (
+          <div className="max-h-56 overflow-auto rounded-md border p-2 space-y-1">
+            {googleContacts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No contacts available.</p>
+            ) : (
+              googleContacts.slice(0, 50).map((c, idx) => (
+                <button
+                  key={`${c.email}-${idx}`}
+                  type="button"
+                  onClick={() => handlePickContact(c)}
+                  className="w-full text-left px-2 py-1 rounded hover:bg-accent"
+                >
+                  <div className="text-sm font-medium">{c.name}</div>
+                  <div className="text-xs text-muted-foreground">{c.email}</div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-2">
             <Label htmlFor="name">Name *</Label>
             <Input
